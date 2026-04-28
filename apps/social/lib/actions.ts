@@ -88,6 +88,32 @@ export async function deletePost(input: {
   revalidateMonth(input.client_slug, input.month_slug);
 }
 
+export async function bulkCreatePosts(input: {
+  month_id: string;
+  client_slug: string;
+  month_slug: string;
+  drafts: Array<{
+    post_date: string;
+    content_type: ContentType;
+    pillar: Pillar | null;
+    description: string | null;
+  }>;
+}) {
+  if (input.drafts.length === 0) return { inserted: 0 };
+  const sb = supabaseServer();
+  const rows = input.drafts.map(d => ({
+    month_id: input.month_id,
+    post_date: d.post_date,
+    content_type: d.content_type,
+    pillar: d.pillar,
+    description: d.description,
+  }));
+  const { error, count } = await sb.from('posts').insert(rows, { count: 'exact' });
+  if (error) throw error;
+  revalidateMonth(input.client_slug, input.month_slug);
+  return { inserted: count ?? rows.length };
+}
+
 // ============================================================================
 // Shoots
 // ============================================================================

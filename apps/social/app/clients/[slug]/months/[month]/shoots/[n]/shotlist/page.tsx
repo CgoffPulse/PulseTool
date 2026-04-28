@@ -9,6 +9,8 @@ import { CONTENT_TYPE_LABEL, type ContentType } from '@/lib/types';
 import { fmtDate, fmtMonth, monthSlugToIso } from '@/lib/utils';
 import { PrintButton } from '@/components/print-button';
 import { CaptureChecklist } from './_checklist';
+import { AiBriefButton } from './_ai-brief-button';
+import { getCurrentStrategicFrame } from '@/lib/queries';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,10 +40,34 @@ export default async function ShotListPage({
   const linkedPosts = ctx.posts.filter(p => p.shoot_id === shoot.id);
   const tpl = shoot.template;
   const captureItems = await listCaptureItems(shoot.id);
+  const frame = await getCurrentStrategicFrame(client.id);
+
+  const briefFrame = frame
+    ? [
+        frame.role_of_social ? `Role of social: ${frame.role_of_social}` : null,
+        frame.brand_voice ? `Brand voice: ${frame.brand_voice}` : null,
+        frame.primary_audience ? `Audience: ${frame.primary_audience}` : null,
+        frame.avoid ? `Avoid: ${frame.avoid}` : null,
+      ]
+        .filter(Boolean)
+        .join('\n')
+    : '(no strategic frame yet)';
+
+  const briefCaptures = captureItems.length > 0
+    ? captureItems
+        .map(c => `${c.is_required ? '[req]' : '[extra]'} ${c.label}`)
+        .join('\n')
+    : tpl?.required_capture_list ?? '(no capture items)';
+
+  const briefLinkedPosts = linkedPosts.length > 0
+    ? linkedPosts
+        .map(p => `${p.post_date} ${CONTENT_TYPE_LABEL[p.content_type]}: ${p.description ?? '(no description)'}`)
+        .join('\n')
+    : '(no linked posts)';
 
   return (
     <article className="mx-auto max-w-3xl print:max-w-none">
-      <div className="no-print mb-8 flex items-center justify-between">
+      <div className="no-print mb-8 flex flex-wrap items-center justify-between gap-3">
         <a
           href={`/clients/${slug}/months/${month}/production`}
           className="inline-flex items-center gap-1.5 text-xs uppercase tracking-label text-charcoal/55 hover:text-amber-deep"
@@ -49,7 +75,19 @@ export default async function ShotListPage({
           <ArrowLeft size={13} />
           Back to production
         </a>
-        <PrintButton />
+        <div className="flex items-center gap-2">
+          <AiBriefButton
+            shootId={shoot.id}
+            clientSlug={slug}
+            monthSlug={month}
+            clientId={client.id}
+            frame={briefFrame}
+            captures={briefCaptures}
+            linkedPosts={briefLinkedPosts}
+            currentNotes={shoot.notes}
+          />
+          <PrintButton />
+        </div>
       </div>
 
       <header className="grid grid-cols-[auto,1fr] items-end gap-7 border-b-2 border-green-deep pb-7">

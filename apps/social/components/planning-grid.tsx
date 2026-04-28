@@ -22,6 +22,7 @@ import {
   updatePost,
   updateShoot,
 } from '@/lib/actions';
+import { AiCaptionHelper } from './ai-caption-helper';
 import { cn } from '@/lib/utils';
 
 const CELL =
@@ -45,6 +46,7 @@ export function PlanningGrid({
   posts: initialPosts,
   shoots,
   templates,
+  clientId,
 }: {
   clientSlug: string;
   monthSlug: string;
@@ -52,6 +54,7 @@ export function PlanningGrid({
   posts: Post[];
   shoots: ShootWithTemplate[];
   templates: ShootTemplate[];
+  clientId?: string | null;
 }) {
   const router = useRouter();
   const [, start] = useTransition();
@@ -197,6 +200,7 @@ export function PlanningGrid({
                       onPatch={patch => onPatch(p.id, patch)}
                       onDelete={() => onDelete(p.id)}
                       showDate={i === 0}
+                      clientId={clientId}
                     />
                   ))
                 )
@@ -256,13 +260,16 @@ function PostRow({
   onPatch,
   onDelete,
   showDate,
+  clientId,
 }: {
   post: Post;
   shoots: ShootWithTemplate[];
   onPatch: (patch: Partial<Post>) => void;
   onDelete: () => void;
   showDate: boolean;
+  clientId?: string | null;
 }) {
+  const [description, setDescription] = useState(post.description ?? '');
   return (
     <tr
       className={cn(
@@ -318,16 +325,31 @@ function PostRow({
         />
       </td>
       <td className="px-2 py-3 min-w-[280px]">
-        <textarea
-          rows={2}
-          className={CELL + ' resize-y leading-snug'}
-          defaultValue={post.description ?? ''}
-          placeholder="Caption / hook"
-          onBlur={e => {
-            const v = e.target.value || null;
-            if (v !== post.description) onPatch({ description: v });
-          }}
-        />
+        <div className="relative">
+          <textarea
+            rows={2}
+            className={CELL + ' resize-y leading-snug pr-10'}
+            value={description}
+            placeholder="Caption / hook"
+            onChange={e => setDescription(e.target.value)}
+            onBlur={() => {
+              const v = description || null;
+              if (v !== post.description) onPatch({ description: v });
+            }}
+          />
+          <div className="pointer-events-none absolute right-1.5 top-1.5">
+            <div className="pointer-events-auto">
+              <AiCaptionHelper
+                draft={description}
+                clientId={clientId}
+                onAccept={caption => {
+                  setDescription(caption);
+                  onPatch({ description: caption });
+                }}
+              />
+            </div>
+          </div>
+        </div>
         <AssetUrlInput
           value={post.asset_url}
           onChange={v => onPatch({ asset_url: v })}
