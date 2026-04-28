@@ -1,6 +1,6 @@
 'use client';
 
-import { createBrowserClient } from '@supabase/ssr';
+import { createBrowserClient, type CookieMethodsBrowser } from '@supabase/ssr';
 
 let client: ReturnType<typeof createBrowserClient> | null = null;
 
@@ -12,3 +12,5 @@ export function supabaseBrowser() {
   );
   return client;
 }
+
+export type { CookieMethodsBrowser };

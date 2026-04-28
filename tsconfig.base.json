@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "paths": {
+      "@pulse/db": ["./packages/db/src/index.ts"],
+      "@pulse/db/server": ["./packages/db/src/server.ts"],
+      "@pulse/db/browser": ["./packages/db/src/browser.ts"],
+      "@pulse/db/types": ["./packages/db/src/shared-types.ts"],
+      "@pulse/obsidian-sync": ["./packages/obsidian-sync/src/index.ts"]
+    }
+  }
+}
