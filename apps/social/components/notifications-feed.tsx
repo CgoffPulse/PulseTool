@@ -105,7 +105,7 @@ export function NotificationsFeed({
       <header className="border-b border-cream-dk/60 pb-6">
         <div className="eyebrow">Production hub</div>
         <h1 className="mt-3 font-display text-5xl font-black leading-display tracking-display text-green-deep">
-          Notifications
+          What needs <span className="italic text-amber-deep">attention</span>
         </h1>
         <p className="mt-3 max-w-2xl text-base italic text-charcoal/65">
           Every alert the action engine raised. Filter by audience, severity, or client.

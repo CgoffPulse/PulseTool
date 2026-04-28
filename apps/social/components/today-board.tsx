@@ -171,7 +171,11 @@ export function TodayBoard({
       {/* THIS WEEK */}
       <Section
         eyebrow="This week"
-        title="What's coming up"
+        title={
+          <>
+            What's <span className="italic text-amber-deep">coming up</span>
+          </>
+        }
         tag={`Week of ${format(parseISO(weekStartIso), 'MMM d')} → ${format(parseISO(weekEndIso), 'MMM d')}.`}
       >
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -264,7 +268,11 @@ export function TodayBoard({
       {/* WATCHING */}
       <Section
         eyebrow="Watching"
-        title="Team work that touches you"
+        title={
+          <>
+            Team work that <span className="italic text-amber-deep">touches you</span>
+          </>
+        }
         tag="Items owned by others where your input may be needed."
       >
         <div className="rounded-2xl border border-cream-dk/60 bg-white p-5 shadow-card">
@@ -374,7 +382,7 @@ function Section({
   children,
 }: {
   eyebrow: string;
-  title: string;
+  title: React.ReactNode;
   tag: string;
   children: React.ReactNode;
 }) {
