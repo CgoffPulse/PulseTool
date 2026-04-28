@@ -1,12 +1,9 @@
-import { supabaseServer } from '../supabase/server';
+import { q } from '../db';
 import type { Project } from '../types';
 
 interface GitHubCommit {
   sha: string;
-  commit: {
-    author?: { date?: string };
-    message?: string;
-  };
+  commit: { author?: { date?: string }; message?: string };
 }
 
 interface GitHubRepo {
@@ -52,7 +49,6 @@ export async function pollOne(repo: string, token: string): Promise<PolledRepo> 
   );
   const last = commits[0] ?? null;
 
-  // Search APIs include both PRs (issues) and issues; split via type:pr / type:issue
   const prSearch = await gh<GitHubSearchResp>(
     `/search/issues?q=${encodeURIComponent(`repo:${repo} is:pr is:open`)}`,
     token
@@ -78,14 +74,10 @@ export async function pollAllProjects(): Promise<{ polled: number; skipped: numb
     throw new Error('GITHUB_TOKEN is not set in env');
   }
 
-  const sb = supabaseServer();
-  const { data, error } = await sb
-    .from('projects')
-    .select('*')
-    .not('github_repo', 'is', null)
-    .neq('state', 'archived');
-  if (error) throw error;
-  const projects = (data ?? []) as Project[];
+  const projects = await q<Project>(
+    `select * from dev.projects
+     where github_repo is not null and state <> 'archived'`
+  );
 
   let polled = 0;
   let skipped = 0;
@@ -97,12 +89,22 @@ export async function pollAllProjects(): Promise<{ polled: number; skipped: numb
       continue;
     }
     try {
-      const result = await pollOne(p.github_repo, token);
-      const { error: insErr } = await sb.from('repo_activity').insert({
-        project_id: p.id,
-        ...result,
-      });
-      if (insErr) throw insErr;
+      const r = await pollOne(p.github_repo, token);
+      await q(
+        `insert into dev.repo_activity
+           (project_id, default_branch, last_commit_sha, last_commit_at,
+            last_commit_message, open_pr_count, open_issue_count)
+         values ($1,$2,$3,$4,$5,$6,$7)`,
+        [
+          p.id,
+          r.default_branch,
+          r.last_commit_sha,
+          r.last_commit_at,
+          r.last_commit_message,
+          r.open_pr_count,
+          r.open_issue_count,
+        ]
+      );
       polled++;
     } catch (err) {
       errors.push(`${p.slug} (${p.github_repo}): ${(err as Error).message}`);

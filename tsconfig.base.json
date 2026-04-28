@@ -17,6 +17,7 @@
       "@pulse/db": ["./packages/db/src/index.ts"],
       "@pulse/db/server": ["./packages/db/src/server.ts"],
       "@pulse/db/browser": ["./packages/db/src/browser.ts"],
+      "@pulse/db/pg": ["./packages/db/src/pg.ts"],
       "@pulse/db/types": ["./packages/db/src/shared-types.ts"],
       "@pulse/obsidian-sync": ["./packages/obsidian-sync/src/index.ts"]
     }

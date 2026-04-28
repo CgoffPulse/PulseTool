@@ -1,4 +1,4 @@
-import { supabaseServer } from './supabase/server';
+import { q, qOne } from './db';
 import type {
   Deployment,
   FsSnapshot,
@@ -9,146 +9,122 @@ import type {
   TodayTask,
 } from './types';
 
-export async function listProjects(opts?: {
-  includeArchived?: boolean;
-}): Promise<Project[]> {
-  const sb = supabaseServer();
-  let q = sb.from('projects').select('*').order('updated_at', { ascending: false });
-  if (!opts?.includeArchived) q = q.neq('state', 'archived');
-  const { data, error } = await q;
-  if (error) throw error;
-  return (data ?? []) as Project[];
+// ============================================================================
+// Read helpers — server-side only.
+// ============================================================================
+
+export async function listProjects(opts?: { includeArchived?: boolean }) {
+  const where = opts?.includeArchived ? '' : `where state <> 'archived'`;
+  return q<Project>(
+    `select * from dev.projects ${where} order by updated_at desc`
+  );
 }
 
-export async function getProjectBySlug(slug: string): Promise<Project | null> {
-  const sb = supabaseServer();
-  const { data, error } = await sb
-    .from('projects')
-    .select('*')
-    .eq('slug', slug)
-    .maybeSingle();
-  if (error) throw error;
-  return (data as Project) ?? null;
+export async function getProjectBySlug(slug: string) {
+  return qOne<Project>(`select * from dev.projects where slug = $1`, [slug]);
 }
 
-export async function listTasksForProject(projectId: string): Promise<Task[]> {
-  const sb = supabaseServer();
-  const { data, error } = await sb
-    .from('tasks')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('status', { ascending: true })
-    .order('sort_index', { ascending: true });
-  if (error) throw error;
-  return (data ?? []) as Task[];
+export async function listTasksForProject(projectId: string) {
+  return q<Task>(
+    `select * from dev.tasks
+     where project_id = $1
+     order by status asc, sort_index asc`,
+    [projectId]
+  );
 }
 
-export async function listAllOpenTasks(): Promise<Task[]> {
-  const sb = supabaseServer();
-  const { data, error } = await sb
-    .from('tasks')
-    .select('*')
-    .not('status', 'in', '("done","cancelled")')
-    .order('priority', { ascending: true })
-    .order('due_date', { ascending: true, nullsFirst: false })
-    .order('sort_index', { ascending: true });
-  if (error) throw error;
-  return (data ?? []) as Task[];
+export async function listAllOpenTasks() {
+  return q<Task>(
+    `select * from dev.tasks
+     where status not in ('done','cancelled')
+     order by priority asc, due_date asc nulls last, sort_index asc`
+  );
 }
 
-export async function listAllTasks(): Promise<Task[]> {
-  const sb = supabaseServer();
-  const { data, error } = await sb
-    .from('tasks')
-    .select('*')
-    .order('updated_at', { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as Task[];
+export async function listAllTasks() {
+  return q<Task>(`select * from dev.tasks order by updated_at desc`);
 }
 
-async function latestPerProject<T extends { project_id: string; observed_at: string }>(
+async function latestPerProject<T extends { project_id: string }>(
   table: 'repo_activity' | 'fs_snapshots' | 'deployments',
   projectIds: string[]
 ): Promise<Map<string, T>> {
   if (projectIds.length === 0) return new Map();
-  const sb = supabaseServer();
-  const { data, error } = await sb
-    .from(table)
-    .select('*')
-    .in('project_id', projectIds)
-    .order('observed_at', { ascending: false });
-  if (error) throw error;
-  const m = new Map<string, T>();
-  for (const row of (data ?? []) as T[]) {
-    if (!m.has(row.project_id)) m.set(row.project_id, row);
-  }
-  return m;
+  const rows = await q<T>(
+    `select distinct on (project_id) *
+     from dev.${table}
+     where project_id = any($1::uuid[])
+     order by project_id, observed_at desc`,
+    [projectIds]
+  );
+  return new Map(rows.map(r => [r.project_id, r]));
 }
 
 export async function buildProjectsWithLatest(): Promise<ProjectWithLatest[]> {
   const projects = await listProjects({ includeArchived: false });
   const ids = projects.map(p => p.id);
   if (ids.length === 0) return [];
-  const sb = supabaseServer();
 
-  const [repos, fs, deploys, taskCounts] = await Promise.all([
+  const [repos, fs, deploys, taskRows] = await Promise.all([
     latestPerProject<RepoActivity>('repo_activity', ids),
     latestPerProject<FsSnapshot>('fs_snapshots', ids),
     latestPerProject<Deployment>('deployments', ids),
-    sb
-      .from('tasks')
-      .select('project_id, status')
-      .in('project_id', ids)
-      .then(r => {
-        const open = new Map<string, number>();
-        const inprog = new Map<string, number>();
-        for (const row of (r.data ?? []) as { project_id: string; status: string }[]) {
-          if (row.status === 'done' || row.status === 'cancelled') continue;
-          open.set(row.project_id, (open.get(row.project_id) ?? 0) + 1);
-          if (row.status === 'in_progress') {
-            inprog.set(row.project_id, (inprog.get(row.project_id) ?? 0) + 1);
-          }
-        }
-        return { open, inprog };
-      }),
+    q<{ project_id: string; status: string; n: string }>(
+      `select project_id, status, count(*)::int as n
+       from dev.tasks
+       where project_id = any($1::uuid[])
+       group by project_id, status`,
+      [ids]
+    ),
   ]);
+
+  const open = new Map<string, number>();
+  const inprog = new Map<string, number>();
+  for (const r of taskRows) {
+    if (!r.project_id) continue;
+    if (r.status === 'done' || r.status === 'cancelled') continue;
+    const n = Number(r.n);
+    open.set(r.project_id, (open.get(r.project_id) ?? 0) + n);
+    if (r.status === 'in_progress') {
+      inprog.set(r.project_id, (inprog.get(r.project_id) ?? 0) + n);
+    }
+  }
 
   return projects.map(p => ({
     project: p,
     latest_repo: repos.get(p.id) ?? null,
     latest_fs: fs.get(p.id) ?? null,
     latest_deployment: deploys.get(p.id) ?? null,
-    open_task_count: taskCounts.open.get(p.id) ?? 0,
-    in_progress_task_count: taskCounts.inprog.get(p.id) ?? 0,
+    open_task_count: open.get(p.id) ?? 0,
+    in_progress_task_count: inprog.get(p.id) ?? 0,
   }));
 }
 
 /** Cross-project tasks worth surfacing on the Today view. */
 export async function buildTodayTasks(): Promise<TodayTask[]> {
-  const sb = supabaseServer();
   const today = new Date().toISOString().slice(0, 10);
-  const { data: rows, error } = await sb
-    .from('tasks')
-    .select('*')
-    .or(
-      `status.eq.in_progress,status.eq.next,priority.eq.p0,priority.eq.p1,due_date.lte.${today}`
-    )
-    .not('status', 'in', '("done","cancelled")')
-    .order('priority', { ascending: true })
-    .order('due_date', { ascending: true, nullsFirst: false });
-  if (error) throw error;
-  const tasks = (rows ?? []) as Task[];
+  const tasks = await q<Task>(
+    `select * from dev.tasks
+     where status not in ('done','cancelled')
+       and (
+         status in ('in_progress','next')
+         or priority in ('p0','p1')
+         or (due_date is not null and due_date <= $1::date)
+       )
+     order by priority asc, due_date asc nulls last`,
+    [today]
+  );
 
   const projectIds = Array.from(
     new Set(tasks.map(t => t.project_id).filter((id): id is string => !!id))
   );
   let projectsById = new Map<string, Project>();
   if (projectIds.length > 0) {
-    const { data: ps } = await sb
-      .from('projects')
-      .select('*')
-      .in('id', projectIds);
-    projectsById = new Map((ps ?? []).map((p: Project) => [p.id, p]));
+    const ps = await q<Project>(
+      `select * from dev.projects where id = any($1::uuid[])`,
+      [projectIds]
+    );
+    projectsById = new Map(ps.map(p => [p.id, p]));
   }
 
   return tasks.map(t => ({

@@ -1,4 +1,4 @@
-import { supabaseServer } from '../supabase/server';
+import { q } from '../db';
 import type { Project } from '../types';
 
 interface VercelDeployment {
@@ -38,14 +38,10 @@ export async function pollAllDeploys(): Promise<{ polled: number; skipped: numbe
   }
   const teamId = process.env.VERCEL_TEAM_ID || undefined;
 
-  const sb = supabaseServer();
-  const { data, error } = await sb
-    .from('projects')
-    .select('*')
-    .not('vercel_project_id', 'is', null)
-    .neq('state', 'archived');
-  if (error) throw error;
-  const projects = (data ?? []) as Project[];
+  const projects = await q<Project>(
+    `select * from dev.projects
+     where vercel_project_id is not null and state <> 'archived'`
+  );
 
   let polled = 0;
   let skipped = 0;
@@ -58,15 +54,18 @@ export async function pollAllDeploys(): Promise<{ polled: number; skipped: numbe
     }
     try {
       const d = await vercelLatest(p.vercel_project_id, token, teamId);
-      const { error: insErr } = await sb.from('deployments').insert({
-        project_id: p.id,
-        provider: 'vercel',
-        state: d?.state ?? null,
-        url: d?.url ? `https://${d.url}` : null,
-        commit_sha: d?.meta?.githubCommitSha ?? null,
-        deployed_at: d?.ready ? new Date(d.ready).toISOString() : null,
-      });
-      if (insErr) throw insErr;
+      await q(
+        `insert into dev.deployments
+           (project_id, provider, state, url, commit_sha, deployed_at)
+         values ($1,'vercel',$2,$3,$4,$5)`,
+        [
+          p.id,
+          d?.state ?? null,
+          d?.url ? `https://${d.url}` : null,
+          d?.meta?.githubCommitSha ?? null,
+          d?.ready ? new Date(d.ready).toISOString() : null,
+        ]
+      );
       polled++;
     } catch (err) {
       errors.push(`${p.slug}: ${(err as Error).message}`);

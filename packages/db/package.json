@@ -9,6 +9,7 @@
     ".": "./src/index.ts",
     "./server": "./src/server.ts",
     "./browser": "./src/browser.ts",
+    "./pg": "./src/pg.ts",
     "./types": "./src/shared-types.ts"
   },
   "scripts": {

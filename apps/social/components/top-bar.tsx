@@ -3,14 +3,22 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useMemo } from 'react';
-import { CalendarDays, LayoutDashboard, Tag, Users } from 'lucide-react';
-import type { Client } from '@/lib/types';
+import { CalendarDays, LayoutDashboard, Sun, Tag, Users } from 'lucide-react';
+import type { Client, NotificationRow } from '@/lib/types';
 import { BrandMark } from './brand-mark';
 import { ClientSwitcher } from './client-switcher';
 import { MonthSwitcher } from './month-switcher';
+import { NotificationBell } from './notification-bell';
+import { PersonPicker } from './person-picker';
 import { cn } from '@/lib/utils';
 
-export function TopBar({ clients }: { clients: Client[] }) {
+export function TopBar({
+  clients,
+  notifications,
+}: {
+  clients: Client[];
+  notifications: NotificationRow[];
+}) {
   const pathname = usePathname() ?? '/';
   const ctx = useMemo(() => parseRoute(pathname), [pathname]);
   const activeClient = ctx.slug ? clients.find(c => c.slug === ctx.slug) : null;
@@ -33,23 +41,34 @@ export function TopBar({ clients }: { clients: Client[] }) {
             </span>
           </Link>
 
-          {clients.length > 0 ? (
-            <div className="hidden items-center gap-3 md:flex">
-              <Divider />
-              <ClientSwitcher clients={clients} active={activeClient ?? null} />
-              {ctx.slug && ctx.month ? (
-                <>
-                  <Divider />
-                  <MonthSwitcher slug={ctx.slug} month={ctx.month} section={ctx.section} />
-                </>
-              ) : null}
-            </div>
-          ) : null}
+          <div className="hidden items-center gap-3 md:flex">
+            <Divider />
+            <PersonPicker />
+            {clients.length > 0 ? (
+              <>
+                <Divider />
+                <ClientSwitcher clients={clients} active={activeClient ?? null} />
+              </>
+            ) : null}
+            {ctx.slug && ctx.month ? (
+              <>
+                <Divider />
+                <MonthSwitcher slug={ctx.slug} month={ctx.month} section={ctx.section} />
+              </>
+            ) : null}
+          </div>
         </div>
 
         <nav className="flex items-center gap-1 text-xs uppercase tracking-eyebrow text-cream/70">
           <NavLink href="/" active={pathname === '/'} icon={<LayoutDashboard size={14} />}>
             Hub
+          </NavLink>
+          <NavLink
+            href="/today"
+            active={pathname.startsWith('/today')}
+            icon={<Sun size={14} />}
+          >
+            Today
           </NavLink>
           <NavLink
             href="/clients"
@@ -72,6 +91,8 @@ export function TopBar({ clients }: { clients: Client[] }) {
           >
             Templates
           </NavLink>
+          <Divider />
+          <NotificationBell notifications={notifications} />
         </nav>
       </div>
     </header>

@@ -358,6 +358,81 @@ export async function deleteCaptureItem(input: {
 }
 
 // ============================================================================
+// People + notifications (Phase 2.1)
+// ============================================================================
+
+export async function dismissNotification(id: string) {
+  const sb = supabaseServer();
+  const { error } = await sb
+    .from('notifications')
+    .update({ dismissed_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw error;
+  revalidatePath('/notifications');
+  revalidatePath('/today');
+  revalidatePath('/');
+}
+
+export async function dismissAllNotifications() {
+  const sb = supabaseServer();
+  const { error } = await sb
+    .from('notifications')
+    .update({ dismissed_at: new Date().toISOString() })
+    .is('dismissed_at', null)
+    .is('resolved_at', null);
+  if (error) throw error;
+  revalidatePath('/notifications');
+  revalidatePath('/today');
+  revalidatePath('/');
+}
+
+export async function assignShootToPerson(input: {
+  shoot_id: string;
+  client_slug: string;
+  month_slug: string;
+  person_id: string | null;
+}) {
+  const sb = supabaseServer();
+  const { error } = await sb
+    .from('shoots')
+    .update({ assigned_person_id: input.person_id })
+    .eq('id', input.shoot_id);
+  if (error) throw error;
+  revalidateMonth(input.client_slug, input.month_slug);
+}
+
+export async function setPostOwner(input: {
+  post_id: string;
+  client_slug: string;
+  month_slug: string;
+  person_id: string | null;
+}) {
+  const sb = supabaseServer();
+  const { error } = await sb
+    .from('posts')
+    .update({ owner_person_id: input.person_id })
+    .eq('id', input.post_id);
+  if (error) throw error;
+  revalidateMonth(input.client_slug, input.month_slug);
+}
+
+export async function upsertPerson(input: {
+  id?: string;
+  patch: Record<string, any>;
+}) {
+  const sb = supabaseServer();
+  if (input.id) {
+    const { error } = await sb.from('people').update(input.patch).eq('id', input.id);
+    if (error) throw error;
+  } else {
+    const { error } = await sb.from('people').insert(input.patch);
+    if (error) throw error;
+  }
+  revalidatePath('/');
+  revalidatePath('/today');
+}
+
+// ============================================================================
 // Holidays
 // ============================================================================
 

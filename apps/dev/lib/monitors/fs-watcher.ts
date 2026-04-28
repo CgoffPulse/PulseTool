@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
-import { supabaseServer } from '../supabase/server';
+import { q } from '../db';
 import type { Project } from '../types';
 
 const exec = promisify(execFile);
@@ -67,14 +67,10 @@ async function inspectRepo(localPath: string): Promise<FsState> {
 }
 
 export async function scanAllProjects(): Promise<{ scanned: number; skipped: number; errors: string[] }> {
-  const sb = supabaseServer();
-  const { data, error } = await sb
-    .from('projects')
-    .select('*')
-    .not('local_path', 'is', null)
-    .neq('state', 'archived');
-  if (error) throw error;
-  const projects = (data ?? []) as Project[];
+  const projects = await q<Project>(
+    `select * from dev.projects
+     where local_path is not null and state <> 'archived'`
+  );
 
   let scanned = 0;
   let skipped = 0;
@@ -86,12 +82,13 @@ export async function scanAllProjects(): Promise<{ scanned: number; skipped: num
       continue;
     }
     try {
-      const result = await inspectRepo(p.local_path);
-      const { error: insErr } = await sb.from('fs_snapshots').insert({
-        project_id: p.id,
-        ...result,
-      });
-      if (insErr) throw insErr;
+      const r = await inspectRepo(p.local_path);
+      await q(
+        `insert into dev.fs_snapshots
+           (project_id, current_branch, is_dirty, uncommitted_files, last_modified_at)
+         values ($1,$2,$3,$4,$5)`,
+        [p.id, r.current_branch, r.is_dirty, r.uncommitted_files, r.last_modified_at]
+      );
       scanned++;
     } catch (err) {
       errors.push(`${p.slug} (${p.local_path}): ${(err as Error).message}`);

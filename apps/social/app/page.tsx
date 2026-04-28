@@ -24,8 +24,10 @@ import {
   listAllPostsForMonths,
   listAllShootsForMonths,
   listClients,
+  listOpenNotifications,
   listShootTemplates,
 } from '@/lib/queries';
+import { TodayRail } from '@/components/today-rail';
 import {
   POST_PIPELINE,
   POST_STATUS_LABEL,
@@ -55,11 +57,13 @@ export default async function HubPage() {
   let shoots: Shoot[] = [];
   let posts: Post[] = [];
   let templates: Awaited<ReturnType<typeof listShootTemplates>> = [];
+  let notifications: Awaited<ReturnType<typeof listOpenNotifications>> = [];
   try {
-    [clients, months, templates] = await Promise.all([
+    [clients, months, templates, notifications] = await Promise.all([
       listClients(),
       listAllMonths(),
       listShootTemplates(),
+      listOpenNotifications(),
     ]);
     const monthIds = months.map(m => m.id);
     [shoots, posts] = await Promise.all([
@@ -132,6 +136,7 @@ export default async function HubPage() {
 
   return (
     <div className="space-y-14">
+      <TodayRail notifications={notifications} />
       <Hero
         clientCount={houseClients.length}
         totalPosts={posts.length}

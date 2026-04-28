@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
-import { supabaseServer } from './supabase/server';
+import { q, qOne } from './db';
 import { markdownSync } from './sync/markdown';
 import { slugify } from './utils';
 import {
@@ -44,15 +44,26 @@ export async function createProject(formData: FormData) {
   });
   const slug = (input.slug && slugify(input.slug)) || slugify(input.name);
 
-  const sb = supabaseServer();
-  const { data, error } = await sb
-    .from('projects')
-    .insert({ ...input, slug })
-    .select('*')
-    .single();
-  if (error) throw error;
+  const p = await qOne<Project>(
+    `insert into dev.projects
+       (name, slug, state, summary, current_focus, owner,
+        github_repo, local_path, vercel_project_id)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+     returning *`,
+    [
+      input.name,
+      slug,
+      input.state,
+      input.summary,
+      input.current_focus,
+      input.owner,
+      input.github_repo,
+      input.local_path,
+      input.vercel_project_id,
+    ]
+  );
+  if (!p) throw new Error('Insert returned no row');
 
-  const p = data as Project;
   await markdownSync.upsert('project', p.id, projectFrontmatter(p), p.summary ?? '');
   revalidatePath('/');
   revalidatePath('/projects');
@@ -70,20 +81,27 @@ export async function updateProjectField(
     vercel_project_id: string | null;
   }>
 ) {
-  const sb = supabaseServer();
-  const update: Record<string, unknown> = { ...patch };
-  if (patch.state === 'archived') update.archived_at = new Date().toISOString();
-  if (patch.state && patch.state !== 'archived') update.archived_at = null;
+  const sets: string[] = [];
+  const params: unknown[] = [];
+  for (const [k, v] of Object.entries(patch)) {
+    params.push(v);
+    sets.push(`${k} = $${params.length}`);
+  }
+  if (patch.state === 'archived') {
+    params.push(new Date().toISOString());
+    sets.push(`archived_at = $${params.length}`);
+  } else if (patch.state) {
+    sets.push(`archived_at = null`);
+  }
+  if (sets.length === 0) return;
 
-  const { data, error } = await sb
-    .from('projects')
-    .update(update)
-    .eq('id', id)
-    .select('*')
-    .single();
-  if (error) throw error;
+  params.push(id);
+  const p = await qOne<Project>(
+    `update dev.projects set ${sets.join(', ')} where id = $${params.length} returning *`,
+    params
+  );
+  if (!p) return;
 
-  const p = data as Project;
   await markdownSync.upsert('project', p.id, projectFrontmatter(p), p.summary ?? '');
   revalidatePath('/');
   revalidatePath('/projects');
@@ -118,61 +136,59 @@ export async function createTask(formData: FormData) {
     due_date: formData.get('due_date'),
   });
 
-  const sb = supabaseServer();
-  const { data, error } = await sb.from('tasks').insert(input).select('*').single();
-  if (error) throw error;
+  const t = await qOne<Task>(
+    `insert into dev.tasks (project_id, title, notes, status, priority, due_date)
+     values ($1,$2,$3,$4,$5,$6) returning *`,
+    [
+      input.project_id ?? null,
+      input.title,
+      input.notes,
+      input.status,
+      input.priority,
+      input.due_date,
+    ]
+  );
+  if (!t) throw new Error('Insert returned no row');
 
-  const t = data as Task;
   await markdownSync.upsert('task', t.id, taskFrontmatter(t), t.notes ?? '');
   revalidatePath('/');
   revalidatePath('/tasks');
   if (input.project_id) {
-    const { data: p } = await sb
-      .from('projects')
-      .select('slug')
-      .eq('id', input.project_id)
-      .maybeSingle();
-    if (p) revalidatePath(`/projects/${(p as { slug: string }).slug}`);
+    const p = await qOne<{ slug: string }>(
+      `select slug from dev.projects where id = $1`,
+      [input.project_id]
+    );
+    if (p) revalidatePath(`/projects/${p.slug}`);
   }
 }
 
 export async function updateTaskStatus(id: string, status: string) {
-  const sb = supabaseServer();
-  const update: Record<string, unknown> = { status };
-  if (status === 'done') update.done_at = new Date().toISOString();
-  if (status !== 'done') update.done_at = null;
-  const { data, error } = await sb
-    .from('tasks')
-    .update(update)
-    .eq('id', id)
-    .select('*')
-    .single();
-  if (error) throw error;
-  const t = data as Task;
+  const done_at =
+    status === 'done' ? new Date().toISOString() : null;
+  const t = await qOne<Task>(
+    `update dev.tasks set status = $1, done_at = $2
+     where id = $3 returning *`,
+    [status, done_at, id]
+  );
+  if (!t) return;
   await markdownSync.upsert('task', t.id, taskFrontmatter(t), t.notes ?? '');
   revalidatePath('/');
   revalidatePath('/tasks');
 }
 
 export async function updateTaskPriority(id: string, priority: string) {
-  const sb = supabaseServer();
-  const { data, error } = await sb
-    .from('tasks')
-    .update({ priority })
-    .eq('id', id)
-    .select('*')
-    .single();
-  if (error) throw error;
-  const t = data as Task;
+  const t = await qOne<Task>(
+    `update dev.tasks set priority = $1 where id = $2 returning *`,
+    [priority, id]
+  );
+  if (!t) return;
   await markdownSync.upsert('task', t.id, taskFrontmatter(t), t.notes ?? '');
   revalidatePath('/');
   revalidatePath('/tasks');
 }
 
 export async function deleteTask(id: string) {
-  const sb = supabaseServer();
-  const { error } = await sb.from('tasks').delete().eq('id', id);
-  if (error) throw error;
+  await q(`delete from dev.tasks where id = $1`, [id]);
   await markdownSync.delete('task', id);
   revalidatePath('/');
   revalidatePath('/tasks');

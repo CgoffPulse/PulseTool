@@ -6,6 +6,9 @@ import type {
   Holiday,
   MonthContext,
   MonthRow,
+  NotificationRow,
+  Person,
+  PersonRole,
   Post,
   Shoot,
   ShootTemplate,
@@ -15,6 +18,73 @@ import type {
 
 // ============================================================================
 // Read helpers used by Server Components.
+// ============================================================================
+
+// ============================================================================
+// People + notifications (Phase 2.1)
+// ============================================================================
+
+export async function listPeople(): Promise<Person[]> {
+  const sb = supabaseServer();
+  const { data, error } = await sb
+    .from('people')
+    .select('*')
+    .eq('archived', false)
+    .order('name');
+  if (error) throw error;
+  return (data ?? []) as Person[];
+}
+
+export async function getPersonById(id: string): Promise<Person | null> {
+  const sb = supabaseServer();
+  const { data, error } = await sb
+    .from('people')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as Person) ?? null;
+}
+
+export async function listOpenNotifications(opts?: {
+  audiencePersonId?: string | null;
+  audienceRole?: PersonRole | null;
+}): Promise<NotificationRow[]> {
+  const sb = supabaseServer();
+  let q = sb
+    .from('notifications')
+    .select('*')
+    .is('dismissed_at', null)
+    .is('resolved_at', null)
+    .order('created_at', { ascending: false });
+
+  // If a person is provided, the feed shows: targeted-to-them + their-role
+  // + untargeted (anyone). Skip the filter when no person/role is provided
+  // (admin/operator view sees everything).
+  if (opts?.audiencePersonId || opts?.audienceRole) {
+    const conds: string[] = ['and(audience_person_id.is.null,audience_role.is.null)'];
+    if (opts.audiencePersonId) conds.push(`audience_person_id.eq.${opts.audiencePersonId}`);
+    if (opts.audienceRole) conds.push(`audience_role.eq.${opts.audienceRole}`);
+    q = q.or(conds.join(','));
+  }
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data ?? []) as NotificationRow[];
+}
+
+export async function listAllNotifications(): Promise<NotificationRow[]> {
+  const sb = supabaseServer();
+  const { data, error } = await sb
+    .from('notifications')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(500);
+  if (error) throw error;
+  return (data ?? []) as NotificationRow[];
+}
+
+// ============================================================================
+// Original read helpers
 // ============================================================================
 
 export async function listClients(): Promise<Client[]> {
@@ -218,6 +288,40 @@ export async function listCaptureItemsForMonth(
     .in('shoot_id', ids);
   if (error) throw error;
   return (data ?? []) as CaptureItem[];
+}
+
+/**
+ * Snapshot loader for the action engine. Pulls everything the detectors need
+ * in a small number of round-trips so the cron route is fast.
+ */
+export async function loadEngineSnapshot(today: Date) {
+  const sb = supabaseServer();
+  const [clientsR, peopleR, monthsR, postsR, shootsR, templatesR, framesR, quotasR] =
+    await Promise.all([
+      sb.from('clients').select('*').eq('archived', false),
+      sb.from('people').select('*').eq('archived', false),
+      sb.from('months').select('*'),
+      sb.from('posts').select('*'),
+      sb.from('shoots').select('*'),
+      sb.from('shoot_templates').select('*'),
+      sb.from('strategic_frames').select('*'),
+      sb.from('content_quotas').select('*'),
+    ]);
+  const errs = [clientsR, peopleR, monthsR, postsR, shootsR, templatesR, framesR, quotasR]
+    .map(r => r.error)
+    .filter(Boolean);
+  if (errs.length) throw errs[0];
+  return {
+    today,
+    clients: (clientsR.data ?? []) as Client[],
+    people: (peopleR.data ?? []) as Person[],
+    months: (monthsR.data ?? []) as MonthRow[],
+    posts: (postsR.data ?? []) as Post[],
+    shoots: (shootsR.data ?? []) as Shoot[],
+    templates: (templatesR.data ?? []) as ShootTemplate[],
+    frames: (framesR.data ?? []) as StrategicFrame[],
+    quotas: (quotasR.data ?? []) as ContentQuota[],
+  };
 }
 
 export async function buildMonthContext(
