@@ -5,7 +5,11 @@ import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { format, parseISO } from 'date-fns';
 import { CheckCheck, Filter, RefreshCw, X } from 'lucide-react';
-import { dismissAllNotifications, dismissNotification } from '@/lib/actions';
+import {
+  dismissAllNotifications,
+  dismissNotification,
+  regenerateNotifications,
+} from '@/lib/actions';
 import {
   NOTIFICATION_KIND_LABEL,
   type Client,
@@ -83,14 +87,9 @@ export function NotificationsFeed({
     setRecomputing(true);
     setRecomputeMsg(null);
     try {
-      const r = await fetch('/api/cron/regenerate-notifications', {
-        method: 'POST',
-        cache: 'no-store',
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
+      const r = await regenerateNotifications();
       setRecomputeMsg(
-        `Refreshed. ${j.upserted ?? 0} active · ${j.resolved ?? 0} cleared · ${j.duration_ms}ms.`
+        `Refreshed. ${r.upserted} active · ${r.resolved} cleared.`
       );
       router.refresh();
     } catch (e) {

@@ -361,6 +361,70 @@ export async function deleteCaptureItem(input: {
 // People + notifications (Phase 2.1)
 // ============================================================================
 
+/**
+ * Run the action engine and reconcile the notifications table. Same logic as
+ * the cron route, exposed as a Server Action so the in-app "Recompute now"
+ * button works without needing the CRON_SECRET (which the cron route requires
+ * in production).
+ */
+export async function regenerateNotifications(): Promise<{
+  upserted: number;
+  resolved: number;
+}> {
+  const { runDetectors } = await import('./action-engine');
+  const { loadEngineSnapshot } = await import('./queries');
+  const sb = supabaseServer();
+  const snapshot = await loadEngineSnapshot(new Date());
+  const drafts = runDetectors(snapshot);
+
+  let upserted = 0;
+  if (drafts.length > 0) {
+    const rows = drafts.map(d => ({
+      kind: d.kind,
+      severity: d.severity,
+      dedup_key: d.dedup_key,
+      title: d.title,
+      detail: d.detail ?? null,
+      link_url: d.link_url ?? null,
+      audience_role: d.audience_role ?? null,
+      audience_person_id: d.audience_person_id ?? null,
+      related_post_id: d.related_post_id ?? null,
+      related_shoot_id: d.related_shoot_id ?? null,
+      related_client_id: d.related_client_id ?? null,
+      related_month_id: d.related_month_id ?? null,
+      resolved_at: null,
+    }));
+    const { error } = await sb
+      .from('notifications')
+      .upsert(rows, { onConflict: 'dedup_key' });
+    if (error) throw error;
+    upserted = rows.length;
+  }
+
+  const newKeys = new Set(drafts.map(d => d.dedup_key));
+  const { data: openRows } = await sb
+    .from('notifications')
+    .select('id, dedup_key')
+    .is('dismissed_at', null)
+    .is('resolved_at', null);
+  const stale = (openRows ?? []).filter(r => !newKeys.has(r.dedup_key));
+  let resolved = 0;
+  if (stale.length) {
+    const ids = stale.map(r => r.id);
+    const { error } = await sb
+      .from('notifications')
+      .update({ resolved_at: new Date().toISOString() })
+      .in('id', ids);
+    if (error) throw error;
+    resolved = ids.length;
+  }
+
+  revalidatePath('/notifications');
+  revalidatePath('/today');
+  revalidatePath('/');
+  return { upserted, resolved };
+}
+
 export async function dismissNotification(id: string) {
   const sb = supabaseServer();
   const { error } = await sb

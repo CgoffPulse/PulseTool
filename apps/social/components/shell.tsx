@@ -35,6 +35,7 @@ export async function Shell({ children }: { children: React.ReactNode }) {
               <Link href="/" className="hover:text-amber-mid">Hub</Link>
               <Link href="/today" className="hover:text-amber-mid">Today</Link>
               <Link href="/clients" className="hover:text-amber-mid">Clients</Link>
+              <Link href="/people" className="hover:text-amber-mid">People</Link>
               <Link href="/notifications" className="hover:text-amber-mid">Alerts</Link>
               <Link href="/holidays" className="hover:text-amber-mid">Holidays</Link>
               <Link href="/shoot-templates" className="hover:text-amber-mid">Shoot templates</Link>
