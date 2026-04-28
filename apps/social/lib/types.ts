@@ -185,12 +185,79 @@ export const PERSON_ROLE_LABEL: Record<PersonRole, string> = {
   approver: 'Approver',
 };
 
+/**
+ * Extended role catalog used by the multi-hat `roles` text[] column.
+ * The original `role` enum stays for backward compat (notification audience
+ * routing still uses it). New role names live here.
+ */
+export const EXTENDED_ROLES = [
+  ...(['field', 'strategy', 'producer', 'editor', 'approver'] as const),
+  'founder',
+  'developer',
+  'social_media',
+] as const;
+export type ExtendedRole = (typeof EXTENDED_ROLES)[number];
+
+export const EXTENDED_ROLE_LABEL: Record<ExtendedRole, string> = {
+  field: 'Field',
+  strategy: 'Strategy',
+  producer: 'Producer',
+  editor: 'Editor',
+  approver: 'Approver',
+  founder: 'Founder',
+  developer: 'Developer',
+  social_media: 'Social media',
+};
+
 export interface Person {
   id: string;
   name: string;
   role: PersonRole;
+  /** Multi-hat roles. Backfilled from `role` for legacy rows. */
+  roles: string[] | null;
+  /** Free-form labels (e.g. ["photographer","videographer","drone"]). */
+  responsibilities: string[];
   color: string;
   archived: boolean;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Recurring expectations (admin command center)
+// ─────────────────────────────────────────────────────────────────────────
+
+export type ExpectationCadence = 'daily' | 'weekly' | 'monthly' | 'quarterly';
+
+export const CADENCE_LABEL: Record<ExpectationCadence, string> = {
+  daily: 'Daily',
+  weekly: 'Weekly',
+  monthly: 'Monthly',
+  quarterly: 'Quarterly',
+};
+
+export interface RecurringExpectation {
+  id: string;
+  title: string;
+  description: string | null;
+  cadence: ExpectationCadence;
+  due_rule: string | null;
+  warn_days: number;
+  owner_role: string | null;
+  owner_person_id: string | null;
+  severity_warn: NotificationSeverity;
+  severity_overdue: NotificationSeverity;
+  link_url: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExpectationCompletion {
+  id: string;
+  expectation_id: string;
+  period_key: string;
+  completed_at: string;
+  completed_by: string | null;
+  notes: string | null;
 }
 
 export type NotificationSeverity = 'info' | 'warn' | 'bad';
@@ -206,7 +273,8 @@ export type NotificationKind =
   | 'month_generation_due'
   | 'shoot_schedule_conflict'
   | 'ride_along_opportunity'
-  | 'quota_shortfall';
+  | 'quota_shortfall'
+  | 'expectation_due';
 
 export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   today_action: 'Today',
@@ -220,6 +288,7 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   shoot_schedule_conflict: 'Schedule conflict',
   ride_along_opportunity: 'Ride-along opportunity',
   quota_shortfall: 'Quota shortfall',
+  expectation_due: 'Standard due',
 };
 
 export interface NotificationRow {

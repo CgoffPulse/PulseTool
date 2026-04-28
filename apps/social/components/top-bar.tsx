@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useMemo } from 'react';
-import { CalendarDays, LayoutDashboard, Sun, Tag, UserCircle, Users } from 'lucide-react';
+import { CalendarDays, LayoutDashboard, Settings, Sun, Tag, UserCircle, Users } from 'lucide-react';
 import type { Client, NotificationRow } from '@/lib/types';
 import { BrandMark } from './brand-mark';
 import { ClientSwitcher } from './client-switcher';
@@ -97,6 +97,13 @@ export function TopBar({
             icon={<Tag size={14} />}
           >
             Templates
+          </NavLink>
+          <NavLink
+            href="/admin"
+            active={pathname.startsWith('/admin')}
+            icon={<Settings size={14} />}
+          >
+            Admin
           </NavLink>
           <Divider />
           <NotificationBell notifications={notifications} />

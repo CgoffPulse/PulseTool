@@ -23,10 +23,13 @@ import {
 import {
   type Client,
   type ContentQuota,
+  type ExpectationCompletion,
   type MonthRow,
   type NotificationDraft,
+  type PersonRole,
   type Person,
   type Post,
+  type RecurringExpectation,
   type Shoot,
   type ShootTemplate,
   type StrategicFrame,
@@ -42,6 +45,8 @@ export interface EngineSnapshot {
   templates: ShootTemplate[];
   frames: StrategicFrame[];
   quotas: ContentQuota[];
+  expectations?: RecurringExpectation[];
+  completions?: ExpectationCompletion[];
 }
 
 export interface DetectorContext extends EngineSnapshot {
@@ -94,6 +99,7 @@ export function runDetectors(snapshot: EngineSnapshot): NotificationDraft[] {
     ...detectShootScheduleConflict(ctx),
     ...detectRideAlongOpportunity(ctx),
     ...detectQuotaShortfall(ctx),
+    ...detectExpectationDue(ctx),
   ];
 }
 
@@ -501,8 +507,136 @@ export function detectQuotaShortfall(ctx: DetectorContext): NotificationDraft[] 
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// 11. Recurring expectations — agency standards/SOPs with a known cadence
+//     (admin command center). Fires when the warning window opens, escalates
+//     when overdue. One notification per (expectation, period) pair.
+// ─────────────────────────────────────────────────────────────────────────
+export function detectExpectationDue(ctx: DetectorContext): NotificationDraft[] {
+  const drafts: NotificationDraft[] = [];
+  const expectations = ctx.expectations ?? [];
+  if (expectations.length === 0) return drafts;
+  const completions = ctx.completions ?? [];
+  const completedSet = new Set(
+    completions.map(c => `${c.expectation_id}::${c.period_key}`)
+  );
+  const KNOWN_ROLES: ReadonlySet<PersonRole> = new Set([
+    'field', 'strategy', 'producer', 'editor', 'approver',
+  ]);
+  for (const exp of expectations) {
+    if (!exp.active) continue;
+    const periodKey = computePeriodKey(ctx.today, exp.cadence);
+    if (completedSet.has(`${exp.id}::${periodKey}`)) continue;
+    const dueDate = computeDueDate(ctx.today, exp.cadence, exp.due_rule);
+    if (!dueDate) continue;
+    const daysUntil = differenceInCalendarDays(dueDate, ctx.today);
+    if (daysUntil > exp.warn_days) continue;
+    const overdue = daysUntil < 0;
+    const severity = overdue ? exp.severity_overdue : exp.severity_warn;
+    const title = overdue
+      ? `Overdue: ${exp.title} (${Math.abs(daysUntil)}d)`
+      : daysUntil === 0
+        ? `Due today: ${exp.title}`
+        : `${exp.title} — due in ${daysUntil}d`;
+    drafts.push({
+      kind: 'expectation_due',
+      severity,
+      dedup_key: `expectation:${exp.id}:${periodKey}`,
+      title,
+      detail: exp.description ?? null,
+      link_url: exp.link_url ?? '/admin',
+      audience_role: exp.owner_role && KNOWN_ROLES.has(exp.owner_role as PersonRole)
+        ? (exp.owner_role as PersonRole)
+        : null,
+      audience_person_id: exp.owner_person_id ?? null,
+    });
+  }
+  return drafts;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // helpers
 // ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Stable per-period key the detector and any "mark complete" UI agree on.
+ *  monthly  → 'yyyy-mm'        e.g. '2026-04'
+ *  weekly   → 'yyyy-Www'       ISO-week-style; e.g. '2026-W17'
+ *  quarterly→ 'yyyy-Qn'        e.g. '2026-Q2'
+ *  daily    → 'yyyy-mm-dd'
+ */
+export function computePeriodKey(
+  today: Date,
+  cadence: 'daily' | 'weekly' | 'monthly' | 'quarterly'
+): string {
+  const y = today.getFullYear();
+  const m = today.getMonth() + 1;
+  const d = today.getDate();
+  if (cadence === 'daily') return format(today, 'yyyy-MM-dd');
+  if (cadence === 'monthly') return `${y}-${String(m).padStart(2, '0')}`;
+  if (cadence === 'quarterly') {
+    const q = Math.floor((m - 1) / 3) + 1;
+    return `${y}-Q${q}`;
+  }
+  // weekly: ISO week (week-starts-on-Monday). Use the ISO algorithm.
+  const target = new Date(today);
+  target.setHours(0, 0, 0, 0);
+  // Thursday of this week determines ISO year + week.
+  const dayNum = (target.getDay() + 6) % 7; // 0=Mon … 6=Sun
+  target.setDate(target.getDate() - dayNum + 3);
+  const firstThursday = new Date(target.getFullYear(), 0, 4);
+  const week =
+    1 +
+    Math.round(
+      ((target.getTime() - firstThursday.getTime()) / 86400000 - 3 + ((firstThursday.getDay() + 6) % 7)) / 7
+    );
+  return `${target.getFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+/**
+ * Compute the date by which the current period must be done.
+ *  monthly + 'eom' → last day of current month.
+ *  monthly + 'dN'  → Nth day of current month (clamped to last day).
+ *  weekly + day-name → next occurrence of that weekday this week.
+ *  quarterly + 'eoq' → last day of current quarter.
+ *  daily → today (start of day).
+ */
+export function computeDueDate(
+  today: Date,
+  cadence: 'daily' | 'weekly' | 'monthly' | 'quarterly',
+  rule: string | null | undefined
+): Date | null {
+  const t = new Date(today);
+  t.setHours(0, 0, 0, 0);
+  if (cadence === 'daily') return t;
+  if (cadence === 'monthly') {
+    const eomDate = new Date(t.getFullYear(), t.getMonth() + 1, 0);
+    if (!rule || rule === 'eom') return eomDate;
+    const m = rule.match(/^d(\d{1,2})$/i);
+    if (m) {
+      const n = Math.max(1, Math.min(31, Number(m[1])));
+      const last = eomDate.getDate();
+      const day = Math.min(n, last);
+      return new Date(t.getFullYear(), t.getMonth(), day);
+    }
+    return eomDate;
+  }
+  if (cadence === 'quarterly') {
+    const q = Math.floor(t.getMonth() / 3);
+    const lastMonthOfQ = q * 3 + 2;
+    return new Date(t.getFullYear(), lastMonthOfQ + 1, 0);
+  }
+  // weekly
+  if (!rule) return null;
+  const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+  const idx = days.indexOf(rule.toLowerCase());
+  if (idx < 0) return null;
+  const out = new Date(t);
+  const diff = (idx - out.getDay() + 7) % 7;
+  out.setDate(out.getDate() + diff);
+  return out;
+}
+
+
 function linkPlanning(client: Client | null | undefined, month: MonthRow | null | undefined) {
   if (!client || !month) return null;
   return `/clients/${client.slug}/months/${month.month.slice(0, 7)}/planning`;

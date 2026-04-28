@@ -3,6 +3,7 @@ import type {
   CaptureItem,
   Client,
   ContentQuota,
+  ExpectationCompletion,
   Holiday,
   MonthContext,
   MonthRow,
@@ -10,6 +11,7 @@ import type {
   Person,
   PersonRole,
   Post,
+  RecurringExpectation,
   Shoot,
   ShootTemplate,
   ShootWithTemplate,
@@ -296,21 +298,33 @@ export async function listCaptureItemsForMonth(
  */
 export async function loadEngineSnapshot(today: Date) {
   const sb = supabaseServer();
-  const [clientsR, peopleR, monthsR, postsR, shootsR, templatesR, framesR, quotasR] =
-    await Promise.all([
-      sb.from('clients').select('*').eq('archived', false),
-      sb.from('people').select('*').eq('archived', false),
-      sb.from('months').select('*'),
-      sb.from('posts').select('*'),
-      sb.from('shoots').select('*'),
-      sb.from('shoot_templates').select('*'),
-      sb.from('strategic_frames').select('*'),
-      sb.from('content_quotas').select('*'),
-    ]);
-  const errs = [clientsR, peopleR, monthsR, postsR, shootsR, templatesR, framesR, quotasR]
-    .map(r => r.error)
-    .filter(Boolean);
-  if (errs.length) throw errs[0];
+  const [
+    clientsR, peopleR, monthsR, postsR, shootsR, templatesR, framesR, quotasR,
+    expectationsR, completionsR,
+  ] = await Promise.all([
+    sb.from('clients').select('*').eq('archived', false),
+    sb.from('people').select('*').eq('archived', false),
+    sb.from('months').select('*'),
+    sb.from('posts').select('*'),
+    sb.from('shoots').select('*'),
+    sb.from('shoot_templates').select('*'),
+    sb.from('strategic_frames').select('*'),
+    sb.from('content_quotas').select('*'),
+    sb.from('recurring_expectations').select('*').eq('active', true),
+    sb.from('expectation_completions').select('*'),
+  ]);
+  // Core tables must succeed; expectations/completions may legitimately be
+  // missing pre-migration-0010 — treat as empty in that case.
+  const coreErrs = [
+    clientsR, peopleR, monthsR, postsR, shootsR, templatesR, framesR, quotasR,
+  ].map(r => r.error).filter(Boolean);
+  if (coreErrs.length) throw coreErrs[0];
+  const expectationsData = expectationsR.error
+    ? (isMissingRelation(expectationsR.error) ? [] : (() => { throw expectationsR.error; })())
+    : (expectationsR.data ?? []);
+  const completionsData = completionsR.error
+    ? (isMissingRelation(completionsR.error) ? [] : (() => { throw completionsR.error; })())
+    : (completionsR.data ?? []);
   return {
     today,
     clients: (clientsR.data ?? []) as Client[],
@@ -321,7 +335,52 @@ export async function loadEngineSnapshot(today: Date) {
     templates: (templatesR.data ?? []) as ShootTemplate[],
     frames: (framesR.data ?? []) as StrategicFrame[],
     quotas: (quotasR.data ?? []) as ContentQuota[],
+    expectations: expectationsData as RecurringExpectation[],
+    completions: completionsData as ExpectationCompletion[],
   };
+}
+
+// ─── Recurring expectations ────────────────────────────────────────────────
+// These tables ship in migration 0010. Until that's applied to the target
+// Supabase project, we degrade gracefully so /admin still renders with an
+// empty state instead of 500-ing.
+
+function isMissingRelation(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  // Postgres SQLSTATE 42P01 = undefined_table.
+  const code = (err as { code?: string }).code;
+  if (code === '42P01') return true;
+  const msg = (err as { message?: string }).message ?? '';
+  return /relation .* does not exist/i.test(msg);
+}
+
+export async function listRecurringExpectations(): Promise<RecurringExpectation[]> {
+  const sb = supabaseServer();
+  const { data, error } = await sb
+    .from('recurring_expectations')
+    .select('*')
+    .order('active', { ascending: false })
+    .order('cadence')
+    .order('title');
+  if (error) {
+    if (isMissingRelation(error)) return [];
+    throw error;
+  }
+  return (data ?? []) as RecurringExpectation[];
+}
+
+export async function listExpectationCompletions(
+  expectationId?: string
+): Promise<ExpectationCompletion[]> {
+  const sb = supabaseServer();
+  let q = sb.from('expectation_completions').select('*').order('completed_at', { ascending: false });
+  if (expectationId) q = q.eq('expectation_id', expectationId);
+  const { data, error } = await q;
+  if (error) {
+    if (isMissingRelation(error)) return [];
+    throw error;
+  }
+  return (data ?? []) as ExpectationCompletion[];
 }
 
 export async function buildMonthContext(

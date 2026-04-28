@@ -602,6 +602,85 @@ export async function upsertPerson(input: {
   }
   revalidatePath('/');
   revalidatePath('/today');
+  revalidatePath('/people');
+  revalidatePath('/admin');
+}
+
+// ============================================================================
+// Recurring expectations (admin command center)
+// ============================================================================
+
+export async function upsertRecurringExpectation(input: {
+  id?: string;
+  patch: Record<string, any>;
+}) {
+  const sb = supabaseServer();
+  if (input.id) {
+    const { error } = await sb
+      .from('recurring_expectations')
+      .update(input.patch)
+      .eq('id', input.id);
+    if (error) throw error;
+  } else {
+    const { error } = await sb.from('recurring_expectations').insert(input.patch);
+    if (error) throw error;
+  }
+  revalidatePath('/admin');
+  revalidatePath('/notifications');
+}
+
+export async function deleteRecurringExpectation(id: string) {
+  const sb = supabaseServer();
+  const { error } = await sb.from('recurring_expectations').delete().eq('id', id);
+  if (error) throw error;
+  revalidatePath('/admin');
+  revalidatePath('/notifications');
+}
+
+export async function markExpectationComplete(input: {
+  expectation_id: string;
+  period_key: string;
+  completed_by?: string | null;
+  notes?: string | null;
+}) {
+  const sb = supabaseServer();
+  // Idempotent — same period_key shouldn't double-record. Use upsert by the
+  // (expectation_id, period_key) unique pair.
+  const { error } = await sb.from('expectation_completions').upsert(
+    {
+      expectation_id: input.expectation_id,
+      period_key: input.period_key,
+      completed_by: input.completed_by ?? null,
+      notes: input.notes ?? null,
+      completed_at: new Date().toISOString(),
+    },
+    { onConflict: 'expectation_id,period_key' }
+  );
+  if (error) throw error;
+  // Resolve any open notification for this period so it disappears from the bell.
+  await sb
+    .from('notifications')
+    .update({ resolved_at: new Date().toISOString() })
+    .eq('kind', 'expectation_due')
+    .like('dedup_key', `expectation:${input.expectation_id}:${input.period_key}%`)
+    .is('resolved_at', null);
+  revalidatePath('/admin');
+  revalidatePath('/notifications');
+}
+
+export async function unmarkExpectationComplete(input: {
+  expectation_id: string;
+  period_key: string;
+}) {
+  const sb = supabaseServer();
+  const { error } = await sb
+    .from('expectation_completions')
+    .delete()
+    .eq('expectation_id', input.expectation_id)
+    .eq('period_key', input.period_key);
+  if (error) throw error;
+  revalidatePath('/admin');
+  revalidatePath('/notifications');
 }
 
 // ============================================================================

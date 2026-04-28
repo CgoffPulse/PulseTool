@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { addDays, format } from 'date-fns';
 import {
+  computeDueDate,
+  computePeriodKey,
   detectAssetOverdue,
   detectCoverageGap,
+  detectExpectationDue,
   detectLeadTimeTight,
   detectMissingMonthPlan,
   detectMonthGenerationDue,
@@ -17,9 +20,11 @@ import {
 import type {
   Client,
   ContentQuota,
+  ExpectationCompletion,
   MonthRow,
   Person,
   Post,
+  RecurringExpectation,
   Shoot,
   ShootTemplate,
   StrategicFrame,
@@ -36,8 +41,8 @@ const onsc: Client = {
 const pueblito: Client = {
   id: 'c2', name: 'El Pueblito', slug: 'el_pueblito', color: '#b45309', archived: false,
 };
-const trey: Person = { id: 'p_trey', name: 'Trey', role: 'field', color: '#c96f1f', archived: false };
-const christian: Person = { id: 'p_chr', name: 'Christian', role: 'strategy', color: '#27452b', archived: false };
+const trey: Person = { id: 'p_trey', name: 'Trey', role: 'field', roles: ['field'], responsibilities: [], color: '#c96f1f', archived: false };
+const christian: Person = { id: 'p_chr', name: 'Christian', role: 'strategy', roles: ['strategy'], responsibilities: [], color: '#27452b', archived: false };
 
 const may: MonthRow = {
   id: 'm_may', client_id: 'c1', month: '2026-05-01', cadence_override: null, status: 'draft',
@@ -480,6 +485,148 @@ describe('detectQuotaShortfall', () => {
     const earlyMay = new Date('2026-05-04');
     const snap = makeSnapshot({ today: earlyMay, posts: [] });
     expect(detectQuotaShortfall(ctxFromSnapshot(snap))).toHaveLength(0);
+  });
+});
+
+describe('computePeriodKey', () => {
+  const may4 = new Date('2026-05-04T08:00:00');
+  it('formats monthly as yyyy-mm', () => {
+    expect(computePeriodKey(may4, 'monthly')).toBe('2026-05');
+  });
+  it('formats daily as yyyy-mm-dd', () => {
+    expect(computePeriodKey(may4, 'daily')).toBe('2026-05-04');
+  });
+  it('formats quarterly as yyyy-Qn', () => {
+    expect(computePeriodKey(may4, 'quarterly')).toBe('2026-Q2');
+  });
+  it('formats weekly as yyyy-Www', () => {
+    // 2026-05-04 is a Monday → ISO week 19.
+    expect(computePeriodKey(may4, 'weekly')).toBe('2026-W19');
+  });
+});
+
+describe('computeDueDate', () => {
+  const may4 = new Date('2026-05-04T08:00:00');
+  it('monthly + eom returns last day of current month', () => {
+    const d = computeDueDate(may4, 'monthly', 'eom')!;
+    expect(d.getDate()).toBe(31);
+    expect(d.getMonth()).toBe(4); // May (0-indexed)
+  });
+  it('monthly + d25 returns the 25th', () => {
+    const d = computeDueDate(may4, 'monthly', 'd25')!;
+    expect(d.getDate()).toBe(25);
+  });
+  it('weekly + friday returns the upcoming Friday', () => {
+    const d = computeDueDate(may4, 'weekly', 'friday')!;
+    expect(d.getDay()).toBe(5);
+    expect(d.getDate()).toBe(8);
+  });
+  it('quarterly + eoq returns last day of current quarter', () => {
+    const d = computeDueDate(may4, 'quarterly', 'eoq')!;
+    expect(d.getMonth()).toBe(5); // June
+    expect(d.getDate()).toBe(30);
+  });
+});
+
+describe('detectExpectationDue', () => {
+  function expectation(over: Partial<RecurringExpectation> = {}): RecurringExpectation {
+    return {
+      id: 'exp1',
+      title: 'Send next-month social calendar',
+      description: 'Finalize and send.',
+      cadence: 'monthly',
+      due_rule: 'eom',
+      warn_days: 10,
+      owner_role: 'producer',
+      owner_person_id: null,
+      severity_warn: 'warn',
+      severity_overdue: 'bad',
+      link_url: '/admin',
+      active: true,
+      created_at: '2026-04-01T00:00:00Z',
+      updated_at: '2026-04-01T00:00:00Z',
+      ...over,
+    };
+  }
+
+  it('fires warn within the warn window when not yet completed', () => {
+    const lateMay = new Date('2026-05-25'); // 6d to EOM, inside warn=10
+    const snap = makeSnapshot({
+      today: lateMay,
+      expectations: [expectation()],
+      completions: [],
+    });
+    const drafts = detectExpectationDue(ctxFromSnapshot(snap));
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0].kind).toBe('expectation_due');
+    expect(drafts[0].severity).toBe('warn');
+    expect(drafts[0].dedup_key).toBe('expectation:exp1:2026-05');
+    expect(drafts[0].audience_role).toBe('producer');
+  });
+
+  it('escalates to bad severity when overdue', () => {
+    // Local-time June 5; due rule d1 puts the due date 4 days back in the same period.
+    const june5 = new Date(2026, 5, 5);
+    const snap = makeSnapshot({
+      today: june5,
+      expectations: [expectation({ due_rule: 'd1', warn_days: 5 })],
+      completions: [],
+    });
+    const drafts = detectExpectationDue(ctxFromSnapshot(snap));
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0].severity).toBe('bad');
+    expect(drafts[0].title).toMatch(/Overdue/);
+  });
+
+  it('does not fire when completion exists for the current period', () => {
+    const lateMay = new Date('2026-05-25');
+    const completion: ExpectationCompletion = {
+      id: 'ec1',
+      expectation_id: 'exp1',
+      period_key: '2026-05',
+      completed_at: '2026-05-20T00:00:00Z',
+      completed_by: null,
+      notes: null,
+    };
+    const snap = makeSnapshot({
+      today: lateMay,
+      expectations: [expectation()],
+      completions: [completion],
+    });
+    expect(detectExpectationDue(ctxFromSnapshot(snap))).toHaveLength(0);
+  });
+
+  it('does not fire outside the warn window', () => {
+    const earlyMay = new Date('2026-05-04'); // 27d to EOM, outside warn=10
+    const snap = makeSnapshot({
+      today: earlyMay,
+      expectations: [expectation()],
+      completions: [],
+    });
+    expect(detectExpectationDue(ctxFromSnapshot(snap))).toHaveLength(0);
+  });
+
+  it('skips inactive expectations', () => {
+    const lateMay = new Date('2026-05-25');
+    const snap = makeSnapshot({
+      today: lateMay,
+      expectations: [expectation({ active: false })],
+    });
+    expect(detectExpectationDue(ctxFromSnapshot(snap))).toHaveLength(0);
+  });
+
+  it('routes via owner_person_id without setting audience_role for non-enum roles', () => {
+    const lateMay = new Date('2026-05-25');
+    const snap = makeSnapshot({
+      today: lateMay,
+      expectations: [
+        expectation({ owner_role: 'founder', owner_person_id: 'p_chr' }),
+      ],
+    });
+    const drafts = detectExpectationDue(ctxFromSnapshot(snap));
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0].audience_role).toBeNull();
+    expect(drafts[0].audience_person_id).toBe('p_chr');
   });
 });
 
