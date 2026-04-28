@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LLM Council · Pulse Production Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700;1,900&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#ead8c5; --cream-lt:#f4ede4; --cream-dk:#d9c4ac;
+    --green-deep:#27452b; --green-mid:#4d6d4f; --green-light:#6e9973;
+    --amber-mid:#e89e50; --amber-deep:#c96f1f; --amber-light:#efbb8e;
+    --charcoal:#2a2a28; --bad:#a03030;
+    --ease:cubic-bezier(.22,1,.36,1);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--cream-lt);
+    color:var(--charcoal);
+    font-family:'Montserrat',ui-sans-serif,system-ui,sans-serif;
+    font-size:15px; line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:980px;margin:0 auto;padding:48px 24px 96px}
+  .grain{position:relative;isolation:isolate}
+  .grain::after{
+    content:""; position:absolute; inset:0; pointer-events:none; z-index:1;
+    opacity:.05; mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size:200px 200px;
+  }
+  .grain > *{position:relative;z-index:2}
+
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:12px;
+    font-family:'Montserrat',sans-serif;
+    font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--amber-deep);
+  }
+  .eyebrow::before{
+    content:"";display:inline-block;width:36px;height:2px;
+    background:var(--amber-mid);border-radius:2px;
+  }
+  .eyebrow.cream{color:rgba(234,216,197,.72)}
+  .eyebrow.cream::before{background:var(--amber-mid)}
+  h1,h2,h3{font-family:'Playfair Display',serif;color:var(--green-deep);letter-spacing:-.02em;line-height:1.05;margin:0}
+  h1{font-size:48px;font-weight:900}
+  h2{font-size:30px;font-weight:700;line-height:1.15}
+  h3{font-size:22px;font-weight:700;line-height:1.2}
+  em.amber{color:var(--amber-deep);font-style:italic}
+  p{color:#3a3a36}
+
+  .hero{
+    margin-bottom:40px;border-radius:20px;overflow:hidden;
+    border:1px solid rgba(217,196,172,.6);
+  }
+  .hero .inner{
+    background:var(--green-deep);color:var(--cream);
+    padding:48px 48px 56px;
+  }
+  .hero h1{color:var(--cream)}
+  .hero .lede{color:rgba(234,216,197,.85);max-width:640px;margin-top:16px;font-size:16px}
+
+  .verdict{
+    margin:40px 0;padding:32px;border-radius:16px;
+    background:#fff;border:1px solid rgba(217,196,172,.6);
+    box-shadow:0 4px 12px rgba(39,69,43,.06);
+  }
+  .verdict h2{margin-bottom:8px}
+  .verdict .recommend{
+    margin-top:20px;padding:20px 24px;border-left:3px solid var(--amber-mid);
+    background:var(--cream-lt);border-radius:8px;
+  }
+  .verdict .one-thing{
+    margin-top:20px;padding:20px 24px;
+    background:var(--green-deep);color:var(--cream);border-radius:12px;
+  }
+  .verdict .one-thing h3{color:var(--cream)}
+  .verdict .one-thing strong{color:var(--amber-mid)}
+
+  .grid{display:grid;gap:24px;margin:32px 0}
+  .grid-2{grid-template-columns:repeat(auto-fit,minmax(360px,1fr))}
+
+  .card{
+    background:#fff;border:1px solid rgba(217,196,172,.6);
+    border-radius:12px;padding:24px;
+    box-shadow:0 4px 12px rgba(39,69,43,.06);
+  }
+  .card h3{margin-bottom:8px}
+  .agree{border-left:3px solid var(--green-mid)}
+  .clash{border-left:3px solid var(--amber-deep)}
+  .blind{border-left:3px solid var(--bad)}
+
+  .clash-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;margin-top:16px;border:1px solid rgba(217,196,172,.6);border-radius:8px;overflow:hidden}
+  .clash-grid > div{padding:16px 20px;background:#fff}
+  .clash-grid > div + div{border-left:1px solid rgba(217,196,172,.6)}
+  .clash-grid h4{margin:0 0 8px;font-family:'Montserrat';font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--amber-deep)}
+
+  details{
+    background:#fff;border:1px solid rgba(217,196,172,.6);
+    border-radius:12px;padding:0;margin-bottom:14px;
+    box-shadow:0 1px 3px rgba(0,0,0,.04);
+    transition:box-shadow .3s var(--ease);
+  }
+  details[open]{box-shadow:0 12px 40px rgba(39,69,43,.10),0 4px 12px rgba(39,69,43,.06)}
+  details summary{
+    cursor:pointer;list-style:none;padding:20px 24px;
+    display:flex;align-items:center;justify-content:space-between;gap:16px;
+  }
+  details summary::-webkit-details-marker{display:none}
+  details summary::after{
+    content:"+";font-family:'Playfair Display';font-size:24px;color:var(--amber-deep);
+    transition:transform .3s var(--ease);
+  }
+  details[open] summary::after{transform:rotate(45deg)}
+  details summary .role{font-family:'Montserrat';font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--amber-deep)}
+  details summary .name{font-family:'Playfair Display';font-size:22px;font-weight:700;color:var(--green-deep)}
+  details .body{padding:0 24px 24px;color:#3a3a36}
+  details .body p{margin-top:0;margin-bottom:14px}
+
+  .reviews{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));margin-top:20px}
+  .review{
+    background:var(--cream-lt);border:1px solid rgba(217,196,172,.6);
+    border-radius:10px;padding:20px;
+  }
+  .review h4{margin:0 0 12px;font-family:'Playfair Display';color:var(--green-deep);font-size:18px}
+  .review .row{margin-bottom:10px;font-size:14px}
+  .review .label{font-family:'Montserrat';font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--amber-deep);font-weight:600;display:block;margin-bottom:2px}
+
+  .map{
+    margin:16px 0 0;font-family:'Playfair Display';font-style:italic;color:var(--green-mid);font-size:14px
+  }
+  .map strong{color:var(--green-deep);font-style:normal;font-family:'Montserrat';font-weight:600}
+
+  hr.rule{border:0;border-top:1px solid rgba(217,196,172,.6);margin:48px 0}
+
+  .footer{
+    margin-top:64px;padding-top:24px;border-top:1px solid rgba(217,196,172,.6);
+    font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:rgba(42,42,40,.5)
+  }
+
+  @media (max-width:680px){
+    .wrap{padding:24px 16px 60px}
+    .hero .inner{padding:32px 24px}
+    h1{font-size:36px}
+    h2{font-size:24px}
+    .clash-grid{grid-template-columns:1fr}
+    .clash-grid > div + div{border-left:0;border-top:1px solid rgba(217,196,172,.6)}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <section class="hero grain">
+    <div class="inner">
+      <div class="eyebrow cream">LLM Council · Pulse Community Agency</div>
+      <h1 style="margin-top:18px">From great planning <em class="amber" style="color:var(--amber-mid)">to central nervous system.</em></h1>
+      <p class="lede">A five-advisor pressure-test of the Pulse Production Hub: what's working, what's missing, and the single thing to ship first.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">The Question</div>
+    <h2 style="margin-top:14px">Does the dashboard run the agency, or just describe it?</h2>
+    <p style="margin-top:12px;max-width:760px">
+      Pulse has built a multi-client content production hub: planning grid, capture checklist (required + extras),
+      6-stage post pipeline, asset URLs, field schedule with co-location detection, ride-along (piggyback) shoots,
+      and Pulse-as-its-own-client. Deployed. The next 30–90 days decide whether this becomes the operational
+      backbone — or another well-built tool the team forgets to open.
+    </p>
+  </section>
+
+  <section class="verdict">
+    <div class="eyebrow">Chairman's Verdict</div>
+    <h2 style="margin-top:14px">Stop building. Make it <em class="amber">unmissable</em>.</h2>
+
+    <p style="margin-top:16px">
+      The Council agrees on three things: the visibility layer is solid, the next leverage is
+      <strong>automation</strong> (not features), and <strong>adoption</strong> — especially Trey's — is the
+      actual constraint. Where they clash: build now vs. use first; this scales to SaaS vs. it's already
+      over-engineered for two clients; reframe via first principles vs. just ship a Slack push tomorrow.
+    </p>
+
+    <div class="recommend">
+      <div class="eyebrow" style="margin-bottom:10px">The Recommendation</div>
+      <p><strong>Days 1–30:</strong> use it in earnest for May 2026. Ship one automation only — a daily 8am Slack push of today's shoots, today's posts going live, and today's stuck items. Track one metric: % of May posts at status ≥ Captured by their scheduled week. Don't build anything else.</p>
+      <p><strong>Day 30 review:</strong> if status updates are happening, automate further. If they aren't, the dashboard is wrong, not the world — redesign the touch surface (mobile-first capture, fewer clicks) before adding features.</p>
+      <p><strong>Days 31–90 (assuming adoption):</strong> three automations in order — (1) Drive folder watcher that auto-flips status when files land, (2) AI plan-draft generator that authors next month from pillars + quotas + holidays + gaps so Christian edits instead of writes, (3) performance ingestion to close the Posted → strategy loop.</p>
+      <p><strong>Days 91+:</strong> a client-facing read-only portal showing this-month-vs.-contract.</p>
+      <p style="margin-bottom:0"><strong>Resist the SaaS pivot.</strong> The moat is real but pursuing it now is a different company.</p>
+    </div>
+
+    <div class="one-thing">
+      <div class="eyebrow cream" style="margin-bottom:10px">The One Thing to Do First</div>
+      <h3 style="margin-bottom:10px">Ship the daily 8am Slack push this week. <strong>Nothing else.</strong></h3>
+      <p style="color:rgba(234,216,197,.85)">200 lines of code. A Vercel cron or Supabase scheduled function that pings Slack at 8am with three lists — today's shoots, today's posts going live, today's stuck items — each linking back into the hub. The dashboard is a pull surface. Slack is push. Push wins for adoption every time.</p>
+      <p style="color:rgba(234,216,197,.85);margin-bottom:0">Within 30 days you'll know whether the dashboard is being used — because if Slack messages stop getting opened, neither is the dashboard. That's a more valuable signal than any feature you could ship instead.</p>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <div class="eyebrow">Where the Council Agrees</div>
+    <h2 style="margin-top:14px">High-confidence signals</h2>
+    <div class="grid grid-2">
+      <div class="card agree">
+        <h3>Visibility is solved</h3>
+        <p>The planning, scheduling, and gap-detection surfaces are well-built. Nobody disputed the foundation.</p>
+      </div>
+      <div class="card agree">
+        <h3>Automation > more features</h3>
+        <p>Status updates and asset reconciliation are the highest-ROI next moves. Three advisors named this independently.</p>
+      </div>
+      <div class="card agree">
+        <h3>Adoption is the variable</h3>
+        <p>Tool quality and team usage are independent. Trey's behavior on the road is the actual constraint.</p>
+      </div>
+      <div class="card agree">
+        <h3>Push beats pull</h3>
+        <p>The dashboard is excellent as a reference but it's not where the workday starts. Slack/calendar/email entries that link in win.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <div class="eyebrow">Where the Council Clashes</div>
+    <h2 style="margin-top:14px">Genuine disagreements</h2>
+
+    <div class="clash-grid">
+      <div>
+        <h4>The Executor</h4>
+        <p>30-day moratorium on features. Use what's there. Find what's actually broken, not theoretically missing.</p>
+      </div>
+      <div>
+        <h4>The Expansionist</h4>
+        <p>The moat is closing. Ship route optimization, AI strategy, client portal, productized seats — fast.</p>
+      </div>
+    </div>
+
+    <div class="clash-grid" style="margin-top:16px">
+      <div>
+        <h4>The Contrarian</h4>
+        <p>Over-engineered for two clients. The actual question: what task did this <em>eliminate</em>? If nothing, it's homework.</p>
+      </div>
+      <div>
+        <h4>The Expansionist</h4>
+        <p>Under-imagined. This is a category-defining content operations system. Pulse is sitting on a moat.</p>
+      </div>
+    </div>
+
+    <div class="clash-grid" style="margin-top:16px">
+      <div>
+        <h4>First Principles</h4>
+        <p>Reframe: automate status, plan generation, asset reconciliation. The order matters more than the speed.</p>
+      </div>
+      <div>
+        <h4>The Outsider</h4>
+        <p>Stop adding. The homepage doesn't answer "what do I do today?" for any one role. Fix vocabulary, fix UX.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <div class="eyebrow">Blind Spots Caught in Peer Review</div>
+    <h2 style="margin-top:14px">What only emerged when advisors graded each other</h2>
+    <div class="grid grid-2">
+      <div class="card blind">
+        <h3>No client-facing surface</h3>
+        <p>Entire system is internal. Clients have no view of "what did Pulse deliver vs. the contract this month." The deliverable is invisible to the people paying.</p>
+      </div>
+      <div class="card blind">
+        <h3>No performance feedback loop</h3>
+        <p>Pipeline ends at Posted. Engagement data never returns. Strategy is improvised every month from intuition.</p>
+      </div>
+      <div class="card blind">
+        <h3>No change-management plan</h3>
+        <p>Tool is sound. Adoption isn't designed for. Drive + group chat is muscle memory; nobody's planned how the team is supposed to switch.</p>
+      </div>
+      <div class="card blind">
+        <h3>No ROI on proposed features</h3>
+        <p>Every advisor proposed work. Nobody quantified payoff in dollars or hours saved. Roadmap is intuition, not math.</p>
+      </div>
+      <div class="card blind">
+        <h3>Pulse-as-marketing-engine, untapped</h3>
+        <p>House-client treatment is a strategic move, not a quirk. The dashboard could be the operating system for Pulse's own marketing — sales, social, brand — not just client work.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <div class="eyebrow">Advisor Responses</div>
+    <h2 style="margin-top:14px">Five angles, in full</h2>
+
+    <details>
+      <summary>
+        <span>
+          <span class="role">Advisor 01</span>
+          <span class="name">The Contrarian</span>
+        </span>
+      </summary>
+      <div class="body">
+        <p>The fatal flaw isn't what's missing — it's what the dashboard <em>doesn't eliminate</em>. Look at your team's actual day: Trey is on the road shooting, Christian is writing strategy, you're stitching it together. Before this app, they used Google Drive + group chat. After this app, they use Google Drive + group chat <strong>plus</strong> the app. You added a system without removing one. That's homework.</p>
+        <p>The pipeline (Planned → Captured → Edited → Approved → Scheduled → Posted) is going to be 90% Planned, 5% Captured, and 0% past that — because every status change is a manual click by someone who'd rather just do the work. The "Field Schedule" is operationally smart but, with two clients producing ~50 posts/month total, the optimization upside is roughly one half-day saved per month. Beautiful in principle, marginal in practice.</p>
+        <p>The hub is designed for a 6-person, 8-client agency. You have 2–3 people and 2 clients. The features (co-location detection, ride-along radar) presume problems you don't yet have at the scale where those features pay off. Meanwhile, the actual bottleneck — the gap between shoot day and posted content — has zero automation in your system.</p>
+        <p>The diagnostic question isn't "what should we add?" It's: <strong>What human task did the dashboard kill this week?</strong> If the answer is "none," the rest of this conversation is decoration.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>
+        <span>
+          <span class="role">Advisor 02</span>
+          <span class="name">The First Principles Thinker</span>
+        </span>
+      </summary>
+      <div class="body">
+        <p>What are we actually solving?</p>
+        <p>A marketing agency exists to deliver agreed content on a schedule. The first-principle units are: (1) a contract that promises X pieces, (2) a person who shoots, (3) a person who edits, (4) a person who approves, (5) a destination. Everything else is workflow scaffolding around those five.</p>
+        <p>What the dashboard genuinely optimizes:</p>
+        <ul>
+          <li><strong>Visibility</strong> of state across those units — high value</li>
+          <li><strong>Coordination</strong> between them — high value</li>
+          <li><strong>Reducing duplicate field work</strong> (piggyback) — small absolute number now, valuable at scale</li>
+        </ul>
+        <p>What it does <em>not</em> yet do, and should:</p>
+        <ul>
+          <li><strong>Generate the plan.</strong> You still type 44 post ideas every month. Pillar mix, quotas, and holiday alignment are all in the system. Plan generation is a solver problem, not a creative one. Christian's job should be to <em>edit</em> a draft, not author one.</li>
+          <li><strong>Reflect reality.</strong> When Trey shoots, the system should know without him typing. Drop a file in <code>Shoot 2 - photos</code>, the system ingests, links, advances status. Asset URL is the right pattern; the next step is automated reconciliation.</li>
+          <li><strong>Close the loop.</strong> Pipeline ends at Posted. Engagement data never returns. So strategy is improvised every month from intuition.</li>
+        </ul>
+        <p>The wrong question: "What automations should we add?" The right question: <strong>"What human work in the loop is lowest-leverage and most automatable?"</strong> Answer in priority order: status updates (asset reconciliation), plan generation, performance feedback. Build those three. Ignore everything else.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>
+        <span>
+          <span class="role">Advisor 03</span>
+          <span class="name">The Expansionist</span>
+        </span>
+      </summary>
+      <div class="body">
+        <p>You're treating this like a tool. It's a category.</p>
+        <p>What you've built is a <strong>content operations system</strong> specialized for shoots-driven social production. There are 200+ marketing agencies in NWA alone — in-house brand teams, restaurant groups, regional retail — running this exact workflow in spreadsheets. Six months from now this is a SaaS. Twelve months from now, it's a moat.</p>
+        <p>But ignore the SaaS angle for a minute. Inside Pulse, here's the upside:</p>
+        <ol>
+          <li><strong>Sales tool.</strong> Live dashboard in pitches: "This is how we run your social." Nobody else in NWA does this. Closes deals against generic agencies.</li>
+          <li><strong>Productized client tier.</strong> Sell a client seat (read-only) so they see their pipeline live. End monthly status meetings.</li>
+          <li><strong>AI strategy layer.</strong> You have <em>structured</em> data — pillars, quotas, content type, captions, performance. Plug an LLM into "generate next month from last month + holidays + remaining quota gaps." Christian goes 10× throughput.</li>
+          <li><strong>Route optimization for Trey.</strong> Dates + locations + shoot durations + travel times = an actual day planner. "Start ranch 7am, Tusk + Trotter 11am, OAK 2pm, knock out three shoots and capture Pulse BTS in two." This is gold for a small crew.</li>
+          <li><strong>Coverage marketplace.</strong> When Pulse is in NWA for ONSC, offer "extra capture slots" to other Pulse clients on demand. Idle capacity becomes revenue.</li>
+          <li><strong>Deliverable invoicing.</strong> The system already knows what was promised vs. delivered per month. Wire it to billing. The dashboard isn't just operations — it's the source of truth for what each client paid for.</li>
+        </ol>
+        <p>Stop calling this a tool. It's the operating system of an agency that runs on data.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>
+        <span>
+          <span class="role">Advisor 04</span>
+          <span class="name">The Outsider</span>
+        </span>
+      </summary>
+      <div class="body">
+        <p>I'm going to admit upfront I have no idea what most of this is. Five honest reactions from someone clicking through cold:</p>
+        <ol>
+          <li><strong>"Pulse"</strong> appears twice in the header — once as the app name, once as a client. Same thing? Different thing? Who is this for?</li>
+          <li><strong>"Shoot 1"</strong> — what is that? A photoshoot, a video shoot, both? Why is the first one of the month called "Shoot 1" and not "ONSC Ranch Day, May 11"? The numbering reads like a database row, not a thing humans say.</li>
+          <li><strong>Six pipeline stages.</strong> "Approved" by whom? "Scheduled" on what — a calendar, the social network, this app? When does "Edited" happen? I shouldn't have to guess.</li>
+          <li><strong>The hub homepage has five major sections</strong> stacked vertically. Hero, pipeline, field schedule, Pulse house, attention, per-client. What am I supposed to look at first? What's the headline number that tells me the agency is winning today?</li>
+          <li><strong>Where does posting actually happen?</strong> I see planning, I see capture, I never see "publish." Does this thing post to Instagram? Or do I copy-paste into Meta Business Suite? If yes — say so. If no — say that too.</li>
+        </ol>
+        <p>Two roles need a clean answer to "what do I do today?" — Trey opens it on his phone in a parking lot; Christian opens it Monday morning. Neither has time to learn vocabulary. <strong>The homepage should answer the role-specific "today" question in under three seconds.</strong> Right now it answers "the state of everything," which is impressive and exhausting.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>
+        <span>
+          <span class="role">Advisor 05</span>
+          <span class="name">The Executor</span>
+        </span>
+      </summary>
+      <div class="body">
+        <p>Stop building. Use what's there for one month. May 2026.</p>
+        <p>Monday morning move:</p>
+        <ol>
+          <li><strong>Pick one adoption metric.</strong> Mine: every May 2026 post must reach status ≥ Captured by 6pm Friday of its scheduled week. One number. Track it. Friday 6pm screenshot of the pipeline strip, drop it in Slack. If the number climbs above 80% by month-end, the dashboard works. If it doesn't, no new feature fixes that — the dashboard is wrong, not the world.</li>
+          <li><strong>Run one ride-along this month.</strong> Schedule a real Pulse shoot piggybacked on a real ONSC shoot. See if anyone uses the picker on Planning. If they don't, the feature is theater and you delete it.</li>
+          <li><strong>Ship one automation, this week:</strong> a Vercel cron / Supabase scheduled function that posts to Slack every weekday at 8am: "Today's shoots [list]. Today's posts going live [list]. Stuck items [list]. Open hub →." 200 lines of code. The dashboard is a pull surface. Slack is push. Push wins for adoption every time.</li>
+        </ol>
+        <p>That's it. Three things. Don't add features for 30 days. Re-evaluate May 31. If status updates are happening, ship the second automation: a Drive folder watcher that auto-flips post status to Captured when files land. If status isn't happening, the dashboard is wrong about the team's actual workflow and you need to redesign, not extend.</p>
+        <p>The trap is to keep building. The win is to <em>use it</em>, find what's actually broken (not what's theoretically missing), and fix that. Repeat.</p>
+      </div>
+    </details>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <div class="eyebrow">Peer Review</div>
+    <h2 style="margin-top:14px">The advisors graded each other (anonymized)</h2>
+    <p class="map"><strong>Map:</strong> A = Executor · B = Contrarian · C = First Principles · D = Outsider · E = Expansionist</p>
+
+    <div class="reviews">
+      <div class="review">
+        <h4>Reviewer 1</h4>
+        <div class="row"><span class="label">Strongest</span>A — only response with a falsifiable test in 30 days. A plan with a measurable cutoff date.</div>
+        <div class="row"><span class="label">Biggest blind spot</span>E — assumes a market for an NWA agency to ship SaaS. Productizing is a different company.</div>
+        <div class="row"><span class="label">All missed</span>The <strong>client</strong> doesn't appear anywhere. The agency's deliverable is invisible to the people paying.</div>
+      </div>
+
+      <div class="review">
+        <h4>Reviewer 2</h4>
+        <div class="row"><span class="label">Strongest</span>C — reframing "what automations" → "what human work is lowest-leverage" is the move that unblocks roadmap thinking.</div>
+        <div class="row"><span class="label">Biggest blind spot</span>B — dismisses dashboard value too quickly. The cost of <em>not</em> having a system when scaling 2→5 clients is the real risk.</div>
+        <div class="row"><span class="label">All missed</span>The <strong>people problem</strong>. Trey's adoption is the actual variable; nobody discussed change management.</div>
+      </div>
+
+      <div class="review">
+        <h4>Reviewer 3</h4>
+        <div class="row"><span class="label">Strongest</span>D — the outsider's questions are the actual UX issues. New-hire orientation is a real, unfixed problem.</div>
+        <div class="row"><span class="label">Biggest blind spot</span>A — "≥ Captured by Friday" is a behavioral nudge, not a fix. Doesn't solve structural friction.</div>
+        <div class="row"><span class="label">All missed</span><strong>Cost.</strong> Every automation, AI feature, integration adds operational cost in money <em>and</em> attention. Nobody quantified ROI.</div>
+      </div>
+
+      <div class="review">
+        <h4>Reviewer 4</h4>
+        <div class="row"><span class="label">Strongest</span>E — the route optimizer is concrete AND uniquely possible because dates, locations, durations are already in the database.</div>
+        <div class="row"><span class="label">Biggest blind spot</span>D — "Pulse vs Pulse" confusion conflates audiences. Internal team knows; new hires don't. Fix is documentation, not redesign.</div>
+        <div class="row"><span class="label">All missed</span><strong>Feedback loops.</strong> Pipeline ends at Posted. Engagement never returns to inform strategy. Bigger than any single feature.</div>
+      </div>
+
+      <div class="review">
+        <h4>Reviewer 5</h4>
+        <div class="row"><span class="label">Strongest</span>B — "what does this eliminate?" is the most useful diagnostic in the room. Only B asks about <em>subtracting</em>.</div>
+        <div class="row"><span class="label">Biggest blind spot</span>C — intellectually clean but lacks urgency. Correct list, no dates, no capacity, no ROI sizing.</div>
+        <div class="row"><span class="label">All missed</span><strong>Pulse-as-marketing-engine.</strong> Pulse-as-its-own-client is a strategic move, not a quirk. Dashboard could be the operating system for Pulse's own marketing.</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="footer">Pulse Community Agency · LLM Council · 2026-04-27 · Council convened by Christian</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,115 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --pulse-cream: #ead8c5;
+  --pulse-cream-lt: #f4ede4;
+  --pulse-cream-dk: #d9c4ac;
+  --pulse-green-deep: #27452b;
+  --pulse-green-mid: #4d6d4f;
+  --pulse-amber-mid: #e89e50;
+  --pulse-amber-deep: #c96f1f;
+  --pulse-charcoal: #2a2a28;
+
+  --ease-pulse: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+html, body {
+  background: var(--pulse-cream-lt);
+  color: var(--pulse-charcoal);
+}
+
+/* ───── Texture: grain on dark sections ───── */
+.grain {
+  position: relative;
+  isolation: isolate;
+}
+.grain::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+}
+.grain > * { position: relative; z-index: 2; }
+
+/* ───── Typography helpers ───── */
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pulse-amber-deep);
+}
+.eyebrow::before {
+  content: '';
+  display: inline-block;
+  width: 36px;
+  height: 2px;
+  background: var(--pulse-amber-mid);
+  border-radius: 2px;
+}
+.eyebrow.cream { color: rgba(234, 216, 197, 0.72); }
+.eyebrow.cream::before { background: var(--pulse-amber-mid); }
+.eyebrow.green { color: var(--pulse-green-mid); }
+.eyebrow.green::before { background: var(--pulse-green-mid); }
+.eyebrow.no-bar::before { display: none; }
+
+.label {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.italic-amber {
+  font-family: var(--font-display);
+  font-style: italic;
+  color: var(--pulse-amber-deep);
+}
+
+.tnum,
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Diagonal divider — Pulse signature */
+.shear-bottom { clip-path: polygon(0 0, 100% 0, 100% calc(100% - 56px), 0 100%); }
+.shear-top    { clip-path: polygon(0 56px, 100% 0, 100% 100%, 0 100%); }
+
+/* Focus ring — amber */
+*:focus-visible {
+  outline: 2px solid var(--pulse-amber-mid);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Smooth interactions throughout */
+a, button, input, select, textarea {
+  transition-timing-function: var(--ease-pulse);
+}
+
+/* Quiet pulse on the brand mark */
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.85); }
+}
+.pulse-dot { animation: pulseDot 2.4s ease-in-out infinite; }
+
+/* Print styles */
+@media print {
+  .no-print { display: none !important; }
+  body { background: white; }
+  .grain::after { display: none; }
+}

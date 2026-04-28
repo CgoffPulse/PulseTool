@@ -1,0 +1,15 @@
+node_modules/
+.next/
+out/
+dist/
+.env
+.env.local
+.env.production
+.DS_Store
+*.log
+.vercel/
+.turbo/
+coverage/
+supabase/.branches/
+supabase/.temp/
+.vercel

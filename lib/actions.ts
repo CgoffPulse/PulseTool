@@ -1,0 +1,381 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { supabaseServer } from './supabase/server';
+import type {
+  ContentType,
+  Pillar,
+  PostStatus,
+  ShootAssetStatus,
+} from './types';
+
+function revalidateMonth(slug: string, month: string) {
+  revalidatePath('/');
+  revalidatePath(`/clients/${slug}`);
+  revalidatePath(`/clients/${slug}/months/${month}/planning`);
+  revalidatePath(`/clients/${slug}/months/${month}/production`);
+  revalidatePath(`/clients/${slug}/months/${month}/calendar`);
+}
+
+// ============================================================================
+// Posts
+// ============================================================================
+
+export async function createPost(input: {
+  month_id: string;
+  post_date: string;
+  content_type: ContentType;
+  client_slug: string;
+  month_slug: string;
+}) {
+  const sb = supabaseServer();
+  const { error } = await sb.from('posts').insert({
+    month_id: input.month_id,
+    post_date: input.post_date,
+    content_type: input.content_type,
+  });
+  if (error) throw error;
+  revalidateMonth(input.client_slug, input.month_slug);
+}
+
+export async function updatePost(input: {
+  id: string;
+  client_slug: string;
+  month_slug: string;
+  patch: Partial<{
+    post_date: string;
+    post_time: string | null;
+    platform: string | null;
+    pillar: Pillar | null;
+    content_type: ContentType;
+    description: string | null;
+    shoot_id: string | null;
+    status: PostStatus;
+    asset_ready: boolean;
+    asset_url: string | null;
+  }>;
+}) {
+  const sb = supabaseServer();
+  // If asset_url is being set for the first time and status is still planned/captured,
+  // auto-advance to `edited` so the pipeline reflects reality without a separate click.
+  let patch = { ...input.patch };
+  if (
+    typeof patch.asset_url === 'string' &&
+    patch.asset_url.trim().length > 0 &&
+    patch.status == null
+  ) {
+    const { data: cur } = await sb
+      .from('posts')
+      .select('status')
+      .eq('id', input.id)
+      .maybeSingle();
+    const s = cur?.status as PostStatus | undefined;
+    if (s === 'planned' || s === 'captured') patch.status = 'edited';
+  }
+  const { error } = await sb.from('posts').update(patch).eq('id', input.id);
+  if (error) throw error;
+  revalidateMonth(input.client_slug, input.month_slug);
+}
+
+export async function deletePost(input: {
+  id: string;
+  client_slug: string;
+  month_slug: string;
+}) {
+  const sb = supabaseServer();
+  const { error } = await sb.from('posts').delete().eq('id', input.id);
+  if (error) throw error;
+  revalidateMonth(input.client_slug, input.month_slug);
+}
+
+// ============================================================================
+// Shoots
+// ============================================================================
+
+export async function createShoot(input: {
+  month_id: string;
+  bundle_number: number;
+  client_slug: string;
+  month_slug: string;
+}) {
+  const sb = supabaseServer();
+  const { error } = await sb
+    .from('shoots')
+    .insert({ month_id: input.month_id, bundle_number: input.bundle_number });
+  if (error) throw error;
+  revalidateMonth(input.client_slug, input.month_slug);
+}
+
+export async function updateShoot(input: {
+  id: string;
+  client_slug: string;
+  month_slug: string;
+  patch: Partial<{
+    shoot_template_id: string | null;
+    scheduled_date: string | null;
+    scheduled_time: string | null;
+    location: string | null;
+    assigned_to: string | null;
+    asset_status: ShootAssetStatus;
+    drive_folder_url: string | null;
+    notes: string | null;
+    piggyback_on_shoot_id: string | null;
+  }>;
+}) {
+  const sb = supabaseServer();
+  const { error } = await sb.from('shoots').update(input.patch).eq('id', input.id);
+  if (error) throw error;
+  revalidateMonth(input.client_slug, input.month_slug);
+}
+
+export async function deleteShoot(input: {
+  id: string;
+  client_slug: string;
+  month_slug: string;
+}) {
+  const sb = supabaseServer();
+  // Detach posts first (set shoot_id null) so the foreign key doesn't cascade-orphan them
+  await sb.from('posts').update({ shoot_id: null }).eq('shoot_id', input.id);
+  const { error } = await sb.from('shoots').delete().eq('id', input.id);
+  if (error) throw error;
+  revalidateMonth(input.client_slug, input.month_slug);
+}
+
+// ============================================================================
+// Strategic frame & quotas
+// ============================================================================
+
+export async function upsertStrategicFrame(input: {
+  client_slug: string;
+  client_id: string;
+  quarter: string;
+  patch: Record<string, any>;
+}) {
+  const sb = supabaseServer();
+  const { error } = await sb
+    .from('strategic_frames')
+    .upsert(
+      { client_id: input.client_id, quarter: input.quarter, ...input.patch },
+      { onConflict: 'client_id,quarter' }
+    );
+  if (error) throw error;
+  revalidatePath(`/clients/${input.client_slug}/strategy`);
+  revalidatePath(`/clients/${input.client_slug}`);
+}
+
+export async function upsertQuota(input: {
+  client_slug: string;
+  client_id: string;
+  month: string; // ISO first-of-month
+  patch: Record<string, any>;
+}) {
+  const sb = supabaseServer();
+  const { error } = await sb
+    .from('content_quotas')
+    .upsert(
+      { client_id: input.client_id, month: input.month, ...input.patch },
+      { onConflict: 'client_id,month' }
+    );
+  if (error) throw error;
+  const slug = input.month.slice(0, 7);
+  revalidatePath(`/clients/${input.client_slug}/strategy`);
+  revalidatePath(`/clients/${input.client_slug}/months/${slug}/production`);
+  revalidatePath(`/clients/${input.client_slug}/months/${slug}/planning`);
+}
+
+// ============================================================================
+// Clients
+// ============================================================================
+
+export async function createClient(input: { name: string; slug: string; color?: string }) {
+  const sb = supabaseServer();
+  const { error } = await sb.from('clients').insert({
+    name: input.name,
+    slug: input.slug,
+    color: input.color ?? '#0ea5e9',
+  });
+  if (error) throw error;
+  revalidatePath('/');
+}
+
+// ============================================================================
+// Shoot templates
+// ============================================================================
+
+export async function upsertShootTemplate(input: { id?: string; patch: Record<string, any> }) {
+  const sb = supabaseServer();
+  if (input.id) {
+    const { error } = await sb.from('shoot_templates').update(input.patch).eq('id', input.id);
+    if (error) throw error;
+  } else {
+    const { error } = await sb.from('shoot_templates').insert(input.patch);
+    if (error) throw error;
+  }
+  revalidatePath('/shoot-templates');
+}
+
+export async function deleteShootTemplate(id: string) {
+  const sb = supabaseServer();
+  const { error } = await sb.from('shoot_templates').delete().eq('id', id);
+  if (error) throw error;
+  revalidatePath('/shoot-templates');
+}
+
+// ============================================================================
+// Capture items (per-shoot checklist + extras)
+// ============================================================================
+
+export async function seedCaptureItemsFromTemplate(input: {
+  shoot_id: string;
+  client_slug: string;
+  month_slug: string;
+}) {
+  const sb = supabaseServer();
+  const existing = await sb
+    .from('capture_items')
+    .select('id')
+    .eq('shoot_id', input.shoot_id);
+  if ((existing.data?.length ?? 0) > 0) return; // idempotent
+
+  const { data: shoot } = await sb
+    .from('shoots')
+    .select('shoot_template_id')
+    .eq('id', input.shoot_id)
+    .maybeSingle();
+  const tplId = shoot?.shoot_template_id as string | null | undefined;
+  if (!tplId) return;
+  const { data: tpl } = await sb
+    .from('shoot_templates')
+    .select('required_capture_list')
+    .eq('id', tplId)
+    .maybeSingle();
+  const list = tpl?.required_capture_list as string | null | undefined;
+  if (!list) return;
+  const lines = list
+    .split(/\n+/)
+    .map(s => s.trim())
+    .filter(Boolean);
+  if (!lines.length) return;
+  const rows = lines.map((label, i) => ({
+    shoot_id: input.shoot_id,
+    label,
+    is_required: true,
+    is_captured: false,
+    sort_index: i,
+  }));
+  await sb.from('capture_items').insert(rows);
+  revalidateMonth(input.client_slug, input.month_slug);
+}
+
+export async function addCaptureItem(input: {
+  shoot_id: string;
+  client_slug: string;
+  month_slug: string;
+  label: string;
+  is_required?: boolean;
+  linked_post_id?: string | null;
+}) {
+  const sb = supabaseServer();
+  const max = await sb
+    .from('capture_items')
+    .select('sort_index')
+    .eq('shoot_id', input.shoot_id)
+    .order('sort_index', { ascending: false })
+    .limit(1);
+  const next = ((max.data?.[0]?.sort_index as number) ?? -1) + 1;
+  const { error } = await sb.from('capture_items').insert({
+    shoot_id: input.shoot_id,
+    label: input.label,
+    is_required: input.is_required ?? false,
+    is_captured: false,
+    sort_index: next,
+    linked_post_id: input.linked_post_id ?? null,
+  });
+  if (error) throw error;
+  revalidateMonth(input.client_slug, input.month_slug);
+}
+
+export async function updateCaptureItem(input: {
+  id: string;
+  client_slug: string;
+  month_slug: string;
+  patch: Partial<{
+    label: string;
+    is_required: boolean;
+    is_captured: boolean;
+    captured_at: string | null;
+    linked_post_id: string | null;
+    notes: string | null;
+  }>;
+}) {
+  const sb = supabaseServer();
+  const patch: Record<string, any> = { ...input.patch };
+  // When marking captured, stamp the time. When unmarking, clear it.
+  if ('is_captured' in patch) {
+    patch.captured_at = patch.is_captured ? new Date().toISOString() : null;
+  }
+  const { data: row, error } = await sb
+    .from('capture_items')
+    .update(patch)
+    .eq('id', input.id)
+    .select('*')
+    .maybeSingle();
+  if (error) throw error;
+
+  // Post status auto-advance: if a capture item just got marked captured and it's
+  // linked to a post, move that post to `captured` (only if it's still `planned`).
+  if (
+    row &&
+    patch.is_captured === true &&
+    row.linked_post_id &&
+    typeof row.linked_post_id === 'string'
+  ) {
+    const cur = await sb
+      .from('posts')
+      .select('status')
+      .eq('id', row.linked_post_id)
+      .maybeSingle();
+    if (cur.data?.status === 'planned') {
+      await sb
+        .from('posts')
+        .update({ status: 'captured' })
+        .eq('id', row.linked_post_id);
+    }
+  }
+
+  revalidateMonth(input.client_slug, input.month_slug);
+}
+
+export async function deleteCaptureItem(input: {
+  id: string;
+  client_slug: string;
+  month_slug: string;
+}) {
+  const sb = supabaseServer();
+  const { error } = await sb.from('capture_items').delete().eq('id', input.id);
+  if (error) throw error;
+  revalidateMonth(input.client_slug, input.month_slug);
+}
+
+// ============================================================================
+// Holidays
+// ============================================================================
+
+export async function upsertHoliday(input: { id?: string; patch: Record<string, any> }) {
+  const sb = supabaseServer();
+  if (input.id) {
+    const { error } = await sb.from('holidays').update(input.patch).eq('id', input.id);
+    if (error) throw error;
+  } else {
+    const { error } = await sb.from('holidays').insert(input.patch);
+    if (error) throw error;
+  }
+  revalidatePath('/holidays');
+}
+
+export async function deleteHoliday(id: string) {
+  const sb = supabaseServer();
+  const { error } = await sb.from('holidays').delete().eq('id', id);
+  if (error) throw error;
+  revalidatePath('/holidays');
+}
