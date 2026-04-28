@@ -3,6 +3,7 @@ import {
   buildMonthContext,
   getClientBySlug,
   listHolidays,
+  listPeople,
   listShootTemplates,
 } from '@/lib/queries';
 import { monthSlugToIso } from '@/lib/utils';
@@ -25,6 +26,7 @@ export default async function PlanningPage({
   const ctx = await buildMonthContext(client, iso);
   const templates = await listShootTemplates();
   const holidays = await listHolidays();
+  const people = await listPeople();
 
   // Build the var bundles the month drafter sends to Voice.
   const pillarMix = formatPillarMix(ctx.strategic_frame);
@@ -57,6 +59,7 @@ export default async function PlanningPage({
           shoots={ctx.shoots}
           templates={templates}
           clientId={client.id}
+          people={people}
         />
         <aside className="hidden xl:block">
           <div className="sticky top-20">

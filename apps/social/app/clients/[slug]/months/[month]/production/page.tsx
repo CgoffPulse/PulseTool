@@ -14,6 +14,7 @@ import {
   getClientBySlug,
   listAllShoots,
   listClients,
+  listPeople,
   listShootTemplates,
 } from '@/lib/queries';
 import { leadTimeStatus } from '@/lib/computations';
@@ -31,14 +32,16 @@ export default async function ProductionPage({
   if (!client) notFound();
   const iso = monthSlugToIso(month);
   const ctx = await buildMonthContext(client, iso);
-  const [templates, allShoots, allClients] = await Promise.all([
+  const [templates, allShoots, allClients, people] = await Promise.all([
     listShootTemplates(),
     listAllShoots(),
     listClients(),
+    listPeople(),
   ]);
   const tplById = new Map(templates.map(t => [t.id, t]));
   const shootById = new Map(allShoots.map(s => [s.id, s]));
   const clientById = new Map(allClients.map(c => [c.id, c]));
+  const personById = new Map(people.map(p => [p.id, p]));
   // Build a quick map: shoot id → host client (for shoots in OTHER months/clients)
   const monthsForLookup = new Map<string, { client_id: string }>();
   // For other-client lookups we only need client info; the queries module does
@@ -66,6 +69,7 @@ export default async function ProductionPage({
         piggybacksByHost={piggybacksByHost}
         shootById={shootById}
         clientById={clientById}
+        personById={personById}
       />
 
       <aside>
@@ -87,6 +91,7 @@ function ShootSchedule({
   piggybacksByHost,
   shootById,
   clientById,
+  personById,
 }: {
   shoots: Awaited<ReturnType<typeof buildMonthContext>>['shoots'];
   posts: Awaited<ReturnType<typeof buildMonthContext>>['posts'];
@@ -97,6 +102,7 @@ function ShootSchedule({
   piggybacksByHost: Map<string, Awaited<ReturnType<typeof buildMonthContext>>['shoots']>;
   shootById: Map<string, Awaited<ReturnType<typeof listAllShoots>>[number]>;
   clientById: Map<string, Awaited<ReturnType<typeof listClients>>[number]>;
+  personById: Map<string, Awaited<ReturnType<typeof listPeople>>[number]>;
 }) {
   return (
     <section className="overflow-hidden rounded-2xl border border-cream-dk/60 bg-white shadow-card">
@@ -177,13 +183,18 @@ function ShootSchedule({
                           {s.location}
                         </span>
                       ) : null}
-                      {s.assigned_to ? (
-                        <span className="inline-flex items-center gap-1">
-                          <Sep />
-                          <User size={11} className="text-amber-deep" />
-                          {s.assigned_to}
-                        </span>
-                      ) : null}
+                      {(() => {
+                        const assignee = s.assigned_person_id
+                          ? personById.get(s.assigned_person_id)?.name ?? null
+                          : s.assigned_to;
+                        return assignee ? (
+                          <span className="inline-flex items-center gap-1">
+                            <Sep />
+                            <User size={11} className="text-amber-deep" />
+                            {assignee}
+                          </span>
+                        ) : null;
+                      })()}
                     </div>
 
                     <div className="mt-3 flex flex-wrap items-center gap-2.5 text-[11px] uppercase tracking-label">

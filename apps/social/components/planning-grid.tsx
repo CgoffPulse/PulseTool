@@ -8,6 +8,7 @@ import {
   CONTENT_TYPES,
   CONTENT_TYPE_LABEL,
   type ContentType,
+  type Person,
   type Pillar,
   type Post,
   type PostStatus,
@@ -16,6 +17,7 @@ import {
 } from '@/lib/types';
 import { StatusPipeline } from './status-pipeline';
 import {
+  assignShootToPerson,
   createPost,
   createShoot,
   deletePost,
@@ -47,6 +49,7 @@ export function PlanningGrid({
   shoots,
   templates,
   clientId,
+  people = [],
 }: {
   clientSlug: string;
   monthSlug: string;
@@ -55,6 +58,7 @@ export function PlanningGrid({
   shoots: ShootWithTemplate[];
   templates: ShootTemplate[];
   clientId?: string | null;
+  people?: Person[];
 }) {
   const router = useRouter();
   const [, start] = useTransition();
@@ -216,6 +220,7 @@ export function PlanningGrid({
         clientSlug={clientSlug}
         monthSlug={monthSlug}
         posts={sortedPosts}
+        people={people}
       />
     </div>
   );
@@ -482,12 +487,14 @@ function ShootBundles({
   clientSlug,
   monthSlug,
   posts,
+  people,
 }: {
   shoots: ShootWithTemplate[];
   templates: ShootTemplate[];
   clientSlug: string;
   monthSlug: string;
   posts: Post[];
+  people: Person[];
 }) {
   const router = useRouter();
   const [, start] = useTransition();
@@ -606,15 +613,48 @@ function ShootBundles({
                 </Field>
 
                 <Field label="Assigned to">
-                  <input
-                    type="text"
-                    placeholder="Trey"
-                    className={PANEL_FIELD}
-                    defaultValue={s.assigned_to ?? ''}
-                    onBlur={e =>
-                      patch(s.id, { assigned_to: e.target.value || null })
-                    }
-                  />
+                  {people.length > 0 ? (
+                    <select
+                      className={PANEL_FIELD}
+                      defaultValue={s.assigned_person_id ?? ''}
+                      onChange={e => {
+                        const personId = e.target.value || null;
+                        start(async () => {
+                          await assignShootToPerson({
+                            shoot_id: s.id,
+                            client_slug: clientSlug,
+                            month_slug: monthSlug,
+                            person_id: personId,
+                          });
+                          router.refresh();
+                        });
+                      }}
+                    >
+                      <option value="">— Unassigned —</option>
+                      {people.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                          {' · '}
+                          {p.role}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Add team members on /people"
+                      className={PANEL_FIELD}
+                      defaultValue={s.assigned_to ?? ''}
+                      onBlur={e =>
+                        patch(s.id, { assigned_to: e.target.value || null })
+                      }
+                    />
+                  )}
+                  {s.assigned_to && !s.assigned_person_id ? (
+                    <p className="mt-1 text-[10px] uppercase tracking-eyebrow text-charcoal/45">
+                      Legacy: {s.assigned_to}
+                    </p>
+                  ) : null}
                 </Field>
 
                 <Field label="Drive folder URL">

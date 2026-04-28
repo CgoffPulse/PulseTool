@@ -216,19 +216,19 @@ export function CaptureChecklist({
 
         {/* Add extra */}
         <div className="no-print rounded-lg border border-dashed border-amber-mid/50 bg-white p-3.5">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:flex-wrap">
             <input
               type="text"
               value={extraText}
               onChange={e => setExtraText(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addExtra())}
-              className="min-w-[200px] flex-1 rounded-md border border-cream-dk bg-white px-3 py-2 text-sm placeholder:text-charcoal/40 focus:border-amber-mid focus:outline-none focus:ring-2 focus:ring-amber-mid/25"
+              className="min-w-[200px] flex-1 rounded-md border border-cream-dk bg-white px-3 py-3 text-base placeholder:text-charcoal/40 focus:border-amber-mid focus:outline-none focus:ring-2 focus:ring-amber-mid/25 md:py-2 md:text-sm"
               placeholder="What did you capture? (e.g. unscripted owner soundbite)"
             />
             <select
               value={extraLink}
               onChange={e => setExtraLink(e.target.value)}
-              className="rounded-md border border-cream-dk bg-white px-3 py-2 text-sm focus:border-amber-mid focus:outline-none focus:ring-2 focus:ring-amber-mid/25"
+              className="rounded-md border border-cream-dk bg-white px-3 py-3 text-base focus:border-amber-mid focus:outline-none focus:ring-2 focus:ring-amber-mid/25 md:py-2 md:text-sm"
             >
               <option value="">Link to post… (optional)</option>
               {linkedPosts.map(p => (
@@ -241,7 +241,7 @@ export function CaptureChecklist({
               type="button"
               onClick={addExtra}
               disabled={!extraText.trim()}
-              className="inline-flex items-center gap-1.5 rounded-md bg-amber-deep px-3.5 py-2 text-xs uppercase tracking-label text-cream-lt hover:bg-charcoal disabled:opacity-40"
+              className="inline-flex items-center justify-center gap-1.5 rounded-md bg-amber-deep px-3.5 py-3 text-sm uppercase tracking-label text-cream-lt hover:bg-charcoal disabled:opacity-40 md:py-2 md:text-xs"
             >
               <Plus size={13} />
               Add extra
@@ -289,7 +289,7 @@ function ChecklistRow({
         onClick={() => onToggle(!item.is_captured)}
         aria-label={item.is_captured ? 'Mark not captured' : 'Mark captured'}
         className={cn(
-          'no-print mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md border-2 transition-colors duration-fast',
+          'no-print mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-md border-2 transition-colors duration-fast md:h-7 md:w-7',
           item.is_captured
             ? accent === 'amber'
               ? 'border-amber-deep bg-amber-deep text-cream-lt'
@@ -298,7 +298,7 @@ function ChecklistRow({
         )}
       >
         {item.is_captured ? (
-          <svg width="14" height="14" viewBox="0 0 14 14">
+          <svg width="18" height="18" viewBox="0 0 14 14" className="md:h-3.5 md:w-3.5">
             <path
               d="M3 7.5L5.5 10L11 4"
               stroke="currentColor"
