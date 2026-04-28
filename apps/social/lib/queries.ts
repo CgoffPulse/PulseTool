@@ -347,11 +347,12 @@ export async function loadEngineSnapshot(today: Date) {
 
 function isMissingRelation(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
-  // Postgres SQLSTATE 42P01 = undefined_table.
   const code = (err as { code?: string }).code;
-  if (code === '42P01') return true;
+  // Postgres SQLSTATE 42P01 = undefined_table; PostgREST PGRST205 =
+  // table not in schema cache (what Supabase REST returns for unknown tables).
+  if (code === '42P01' || code === 'PGRST205') return true;
   const msg = (err as { message?: string }).message ?? '';
-  return /relation .* does not exist/i.test(msg);
+  return /relation .* does not exist|could not find the table/i.test(msg);
 }
 
 export async function listRecurringExpectations(): Promise<RecurringExpectation[]> {
