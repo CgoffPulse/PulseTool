@@ -2,56 +2,239 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  :root {
-    color-scheme: dark;
-  }
+:root {
+  color-scheme: light;
+  --pulse-cream: #ead8c5;
+  --pulse-cream-lt: #f4ede4;
+  --pulse-cream-dk: #d9c4ac;
+  --pulse-green-deep: #27452b;
+  --pulse-green-mid: #4d6d4f;
+  --pulse-green-light: #6e9973;
+  --pulse-green-bark: #1c3220;
+  --pulse-amber-mid: #e89e50;
+  --pulse-amber-deep: #c96f1f;
+  --pulse-amber-light: #efbb8e;
+  --pulse-charcoal: #2a2a28;
 
-  html,
+  --ease-pulse: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+html,
+body {
+  background: var(--pulse-cream-lt);
+  color: var(--pulse-charcoal);
+}
+
+/* ───── Texture: grain on dark sections ───── */
+.grain {
+  position: relative;
+  isolation: isolate;
+}
+.grain::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+}
+.grain > * {
+  position: relative;
+  z-index: 2;
+}
+
+/* ───── Typography helpers ───── */
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pulse-amber-deep);
+}
+.eyebrow::before {
+  content: '';
+  display: inline-block;
+  width: 36px;
+  height: 2px;
+  background: var(--pulse-amber-mid);
+  border-radius: 2px;
+}
+.eyebrow.cream {
+  color: rgba(234, 216, 197, 0.72);
+}
+.eyebrow.cream::before {
+  background: var(--pulse-amber-mid);
+}
+.eyebrow.green {
+  color: var(--pulse-green-mid);
+}
+.eyebrow.green::before {
+  background: var(--pulse-green-mid);
+}
+.eyebrow.no-bar::before {
+  display: none;
+}
+
+.label {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.italic-amber {
+  font-family: var(--font-display);
+  font-style: italic;
+  color: var(--pulse-amber-deep);
+}
+
+.tnum,
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Diagonal divider — Pulse signature */
+.shear-bottom {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 56px), 0 100%);
+}
+.shear-top {
+  clip-path: polygon(0 56px, 100% 0, 100% 100%, 0 100%);
+}
+
+/* Decorative oversized watermarks */
+.watermark {
+  font-family: var(--font-display);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  color: var(--pulse-green-deep);
+  opacity: 0.04;
+  pointer-events: none;
+  user-select: none;
+  line-height: 0.85;
+}
+.watermark.cream {
+  color: var(--pulse-cream);
+  opacity: 0.06;
+}
+
+/* Focus ring — amber */
+*:focus-visible {
+  outline: 2px solid var(--pulse-amber-mid);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Smooth interactions throughout */
+a,
+button,
+input,
+select,
+textarea {
+  transition-timing-function: var(--ease-pulse);
+  transition-duration: 0.3s;
+}
+
+/* Quiet pulse on the brand mark */
+@keyframes pulseDot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.85);
+  }
+}
+.pulse-dot {
+  animation: pulseDot 2.4s ease-in-out infinite;
+}
+
+/* Spinner for refresh affordance */
+@keyframes spinSlow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spin-slow {
+  animation: spinSlow 1s linear infinite;
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
   body {
-    background-color: theme('colors.ink.deep');
-    color: theme('colors.slate.100');
+    background: white;
   }
-
-  body {
-    background-image:
-      radial-gradient(ellipse 80% 60% at 50% -10%, theme('colors.indigo.ghost' / 30%), transparent 60%),
-      radial-gradient(ellipse 60% 40% at 90% 10%, theme('colors.sky.deep' / 12%), transparent 60%);
-    background-attachment: fixed;
-  }
-
-  ::selection {
-    background-color: theme('colors.indigo.DEFAULT' / 35%);
-    color: theme('colors.slate.50');
+  .grain::after {
+    display: none;
   }
 }
 
 @layer components {
+  /* ── Surfaces ── */
   .panel {
-    @apply rounded-lg border border-slate-500/30 bg-ink-mid/60 backdrop-blur-sm;
+    @apply rounded-md border border-cream-dk/60 bg-white shadow-sm;
   }
-
   .panel-quiet {
-    @apply rounded-lg border border-slate-500/20 bg-ink-mid/30;
+    @apply rounded-md border border-cream-dk/40 bg-white/70;
+  }
+  .panel-dark {
+    @apply rounded-md border border-cream/10 bg-green-deep text-cream shadow-card;
   }
 
+  /* ── Chips ── */
   .chip {
-    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-2xs uppercase tracking-eyebrow;
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-2xs font-semibold uppercase tracking-eyebrow;
+  }
+  .chip-cream {
+    @apply chip border border-cream-dk/70 bg-cream/50 text-charcoal/70;
+  }
+  .chip-green {
+    @apply chip bg-green-mid/15 text-green-deep;
+  }
+  .chip-amber {
+    @apply chip bg-amber/15 text-amber-deep;
+  }
+  .chip-bad {
+    @apply chip bg-bad/15 text-bad;
+  }
+  .chip-on-dark {
+    @apply chip border border-cream/20 bg-cream/10 text-cream;
   }
 
+  /* ── Buttons ── */
   .btn {
-    @apply inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-fast;
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-xs font-semibold uppercase tracking-label transition-all;
   }
-
   .btn-primary {
-    @apply btn bg-indigo text-white hover:bg-indigo-deep;
+    @apply btn bg-amber-mid text-charcoal shadow-card hover:bg-amber-deep hover:text-cream-lt hover:shadow-lift;
   }
-
+  .btn-secondary {
+    @apply btn border border-green-deep/20 bg-white text-green-deep hover:border-green-deep/40 hover:bg-cream/40;
+  }
   .btn-ghost {
-    @apply btn border border-slate-500/30 bg-transparent text-slate-100 hover:bg-slate-500/10;
+    @apply btn text-green-deep hover:bg-cream/60;
+  }
+  .btn-on-dark {
+    @apply btn border border-cream/20 bg-transparent text-cream hover:border-amber-mid/60 hover:bg-cream/5 hover:text-amber-light;
   }
 
+  /* ── Inputs ── */
   .input {
-    @apply w-full rounded-md border border-slate-500/30 bg-ink-mid px-3 py-2 text-sm text-slate-50 placeholder:text-slate-400 focus:border-indigo-soft focus:outline-none focus:ring-1 focus:ring-indigo-soft;
+    @apply w-full rounded-md border border-cream-dk/70 bg-white px-3 py-2 text-sm text-charcoal placeholder:text-charcoal/40 focus:border-amber-mid focus:outline-none focus:ring-1 focus:ring-amber-mid/40;
+  }
+  .select {
+    @apply input appearance-none pr-8;
   }
 }

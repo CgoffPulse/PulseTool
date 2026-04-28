@@ -133,3 +133,43 @@ export interface TodayTask {
   task: Task;
   project: Project | null;
 }
+
+/** Top-line counts for the dashboard hero. */
+export interface HubStats {
+  active_projects: number;
+  idea_projects: number;
+  paused_projects: number;
+  shipped_projects: number;
+  archived_projects: number;
+  open_tasks: number;
+  in_progress_tasks: number;
+  blocked_tasks: number;
+  done_tasks: number;
+  dirty_repos: number;
+  failing_deploys: number;
+  live_deploys: number;
+  stale_repos: number;
+}
+
+/** Joined commit row for the activity feed. */
+export interface CommitFeedRow {
+  project_id: string;
+  project_name: string;
+  project_slug: string;
+  github_repo: string | null;
+  sha: string | null;
+  message: string | null;
+  committed_at: string | null;
+}
+
+/** Joined deployment row for the activity feed. */
+export interface DeployFeedRow {
+  project_id: string;
+  project_name: string;
+  project_slug: string;
+  state: string | null;
+  url: string | null;
+  commit_sha: string | null;
+  deployed_at: string | null;
+  observed_at: string;
+}

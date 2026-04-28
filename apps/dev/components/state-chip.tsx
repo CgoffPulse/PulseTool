@@ -9,32 +9,47 @@ import {
 } from '@/lib/types';
 
 const projectStateClass: Record<ProjectState, string> = {
-  idea: 'bg-idea/15 text-idea',
-  active: 'bg-active/15 text-active',
-  paused: 'bg-paused/15 text-paused',
-  shipped: 'bg-shipped/15 text-shipped',
-  archived: 'bg-archived/15 text-archived',
+  idea: 'border border-rust-200/40 bg-rust-100/15 text-rust-300',
+  active: 'border border-green-mid/30 bg-green-mid/15 text-green-deep',
+  paused: 'border border-amber-deep/30 bg-amber/15 text-amber-deep',
+  shipped: 'border border-green-deep/30 bg-green-deep/10 text-green-deep',
+  archived: 'border border-cream-dk/70 bg-cream/40 text-charcoal/55',
 };
 
 const taskStatusClass: Record<TaskStatus, string> = {
-  backlog: 'bg-slate-500/15 text-slate-300',
-  next: 'bg-sky/15 text-sky',
-  in_progress: 'bg-indigo/20 text-indigo-soft',
-  blocked: 'bg-bad/15 text-bad',
-  done: 'bg-active/15 text-active',
-  cancelled: 'bg-archived/15 text-archived line-through',
+  backlog: 'border border-cream-dk/70 bg-cream/40 text-charcoal/65',
+  next: 'border border-green-light/40 bg-green-light/15 text-green-deep',
+  in_progress: 'border border-amber-deep/40 bg-amber/20 text-amber-deep',
+  blocked: 'border border-bad/40 bg-bad/10 text-bad',
+  done: 'border border-green-mid/30 bg-green-mid/10 text-green-mid',
+  cancelled: 'border border-cream-dk/60 bg-cream/30 text-charcoal/40 line-through',
 };
 
 const taskPriorityClass: Record<TaskPriority, string> = {
-  p0: 'bg-bad/15 text-bad',
-  p1: 'bg-warn/15 text-warn',
-  p2: 'bg-slate-500/15 text-slate-300',
-  p3: 'bg-slate-500/10 text-slate-400',
+  p0: 'border border-bad/40 bg-bad/10 text-bad',
+  p1: 'border border-amber-deep/40 bg-amber/15 text-amber-deep',
+  p2: 'border border-cream-dk/60 bg-cream/30 text-charcoal/65',
+  p3: 'border border-cream-dk/40 bg-cream/20 text-charcoal/45',
 };
 
-export function ProjectStateChip({ state }: { state: ProjectState }) {
+const baseChip =
+  'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-eyebrow';
+
+export function ProjectStateChip({
+  state,
+  size = 'md',
+}: {
+  state: ProjectState;
+  size?: 'sm' | 'md';
+}) {
   return (
-    <span className={cn('chip', projectStateClass[state])}>
+    <span
+      className={cn(
+        baseChip,
+        size === 'sm' && 'px-1.5 py-0 text-[9px]',
+        projectStateClass[state]
+      )}
+    >
       {PROJECT_STATE_LABEL[state]}
     </span>
   );
@@ -42,7 +57,7 @@ export function ProjectStateChip({ state }: { state: ProjectState }) {
 
 export function TaskStatusChip({ status }: { status: TaskStatus }) {
   return (
-    <span className={cn('chip', taskStatusClass[status])}>
+    <span className={cn(baseChip, taskStatusClass[status])}>
       {TASK_STATUS_LABEL[status]}
     </span>
   );
@@ -50,7 +65,7 @@ export function TaskStatusChip({ status }: { status: TaskStatus }) {
 
 export function TaskPriorityChip({ priority }: { priority: TaskPriority }) {
   return (
-    <span className={cn('chip', taskPriorityClass[priority])}>
+    <span className={cn(baseChip, taskPriorityClass[priority])}>
       {TASK_PRIORITY_LABEL[priority]}
     </span>
   );

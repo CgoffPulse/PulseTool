@@ -30,58 +30,72 @@ export function TaskRow({
 }) {
   const [pending, start] = useTransition();
   const isDone = task.status === 'done' || task.status === 'cancelled';
+  const isUrgent = task.priority === 'p0' || task.priority === 'p1';
+  const isOverdue =
+    task.due_date && new Date(task.due_date) < new Date() && !isDone;
 
   return (
     <div
       className={cn(
-        'group flex items-center gap-3 rounded-md border border-slate-500/15 bg-ink-mid/40 px-3 py-2 transition-colors duration-fast hover:border-slate-500/30',
+        'group flex flex-wrap items-center gap-3 rounded-md border bg-white px-3 py-2.5 shadow-sm transition-all duration-fast ease-pulse hover:shadow-card',
         isDone && 'opacity-60',
-        pending && 'opacity-50'
+        pending && 'opacity-50',
+        isUrgent
+          ? 'border-amber-deep/30 hover:border-amber-deep/60'
+          : 'border-cream-dk/60 hover:border-cream-dk'
       )}
     >
       <button
         aria-label={isDone ? 'Reopen task' : 'Mark task done'}
         onClick={() =>
-          start(() =>
-            updateTaskStatus(task.id, isDone ? 'backlog' : 'done')
-          )
+          start(() => updateTaskStatus(task.id, isDone ? 'backlog' : 'done'))
         }
-        className="text-slate-400 transition-colors hover:text-active"
+        className="text-charcoal/40 transition-colors hover:text-green-mid"
       >
-        {isDone ? <CheckCircle2 size={18} /> : <Circle size={18} />}
+        {isDone ? <CheckCircle2 size={20} /> : <Circle size={20} />}
       </button>
 
       <div className="min-w-0 flex-1">
         <div
           className={cn(
-            'truncate text-sm font-medium text-slate-100',
+            'truncate text-sm font-semibold text-charcoal',
             isDone && 'line-through'
           )}
         >
           {task.title}
         </div>
-        {(showProject || task.due_date) && (
-          <div className="mt-0.5 flex items-center gap-2 text-2xs text-slate-400">
-            {showProject && project && (
-              <Link
-                href={`/projects/${project.slug}`}
-                className="hover:text-indigo-soft"
-              >
-                {project.name}
-              </Link>
-            )}
-            {showProject && !project && task.project_id === null && (
-              <span className="text-slate-500">— Inbox</span>
-            )}
-            {task.due_date && <span>· due {task.due_date}</span>}
-          </div>
-        )}
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-charcoal/50">
+          {showProject && project && (
+            <Link
+              href={`/projects/${project.slug}`}
+              className="font-medium text-green-deep hover:text-amber-deep"
+            >
+              {project.name}
+            </Link>
+          )}
+          {showProject && !project && task.project_id === null && (
+            <span className="text-charcoal/40">— Inbox</span>
+          )}
+          {task.due_date && (
+            <span
+              className={cn(isOverdue && 'font-semibold text-bad')}
+            >
+              {isOverdue ? 'Overdue · ' : 'Due '}
+              {task.due_date}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="hidden md:contents">
+        <TaskPriorityChip priority={task.priority} />
+        <TaskStatusChip status={task.status} />
       </div>
 
       <select
         value={task.priority}
         onChange={e => start(() => updateTaskPriority(task.id, e.target.value))}
-        className="rounded border border-slate-500/20 bg-ink-mid px-2 py-1 text-2xs uppercase tracking-eyebrow text-slate-300 focus:border-indigo-soft focus:outline-none"
+        className="rounded-md border border-cream-dk/60 bg-cream-lt px-2 py-1 text-[11px] font-semibold uppercase tracking-eyebrow text-charcoal/70 focus:border-amber-mid focus:outline-none md:hidden"
       >
         {TASK_PRIORITIES.map(p => (
           <option key={p} value={p}>
@@ -89,11 +103,10 @@ export function TaskRow({
           </option>
         ))}
       </select>
-
       <select
         value={task.status}
         onChange={e => start(() => updateTaskStatus(task.id, e.target.value))}
-        className="rounded border border-slate-500/20 bg-ink-mid px-2 py-1 text-2xs uppercase tracking-eyebrow text-slate-300 focus:border-indigo-soft focus:outline-none"
+        className="rounded-md border border-cream-dk/60 bg-cream-lt px-2 py-1 text-[11px] font-semibold uppercase tracking-eyebrow text-charcoal/70 focus:border-amber-mid focus:outline-none"
       >
         {TASK_STATUSES.map(s => (
           <option key={s} value={s}>
@@ -109,7 +122,7 @@ export function TaskRow({
             start(() => deleteTask(task.id));
           }
         }}
-        className="text-slate-500 opacity-0 transition-opacity duration-fast hover:text-bad group-hover:opacity-100"
+        className="text-charcoal/35 opacity-0 transition-opacity duration-fast hover:text-bad group-hover:opacity-100"
       >
         <Trash2 size={14} />
       </button>

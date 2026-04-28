@@ -26,13 +26,13 @@ export function QuickTaskForm({
           formRef.current?.reset();
         })
       }
-      className="flex flex-wrap items-center gap-2 rounded-md border border-slate-500/20 bg-ink-mid/40 p-2"
+      className="flex flex-wrap items-center gap-2 rounded-md border border-cream-dk/60 bg-white p-2 shadow-sm"
     >
       <input
         name="title"
         required
-        placeholder="Add a task…"
-        className="input flex-1 min-w-[240px] border-0 bg-transparent focus:ring-0"
+        placeholder="Add a task… (be specific)"
+        className="flex-1 min-w-[220px] rounded-md border-0 bg-transparent px-2 py-2 text-sm text-charcoal placeholder:text-charcoal/40 focus:outline-none focus:ring-0"
       />
       {project ? (
         <input type="hidden" name="project_id" value={project.id} />
@@ -40,7 +40,7 @@ export function QuickTaskForm({
         <select
           name="project_id"
           defaultValue={defaultProjectId ?? ''}
-          className="rounded border border-slate-500/20 bg-ink-mid px-2 py-1 text-xs text-slate-300 focus:border-indigo-soft focus:outline-none"
+          className="rounded-md border border-cream-dk/60 bg-cream-lt px-2 py-1.5 text-xs text-charcoal/70 focus:border-amber-mid focus:outline-none"
         >
           <option value="">Inbox</option>
           {projects.map(p => (
@@ -53,7 +53,7 @@ export function QuickTaskForm({
       <select
         name="priority"
         defaultValue="p2"
-        className="rounded border border-slate-500/20 bg-ink-mid px-2 py-1 text-2xs uppercase tracking-eyebrow text-slate-300 focus:border-indigo-soft focus:outline-none"
+        className="rounded-md border border-cream-dk/60 bg-cream-lt px-2 py-1.5 text-[11px] font-semibold uppercase tracking-eyebrow text-charcoal/70 focus:border-amber-mid focus:outline-none"
       >
         {TASK_PRIORITIES.map(p => (
           <option key={p} value={p}>
@@ -64,13 +64,9 @@ export function QuickTaskForm({
       <input
         type="date"
         name="due_date"
-        className="rounded border border-slate-500/20 bg-ink-mid px-2 py-1 text-xs text-slate-300 focus:border-indigo-soft focus:outline-none"
+        className="rounded-md border border-cream-dk/60 bg-cream-lt px-2 py-1.5 text-xs text-charcoal/70 focus:border-amber-mid focus:outline-none"
       />
-      <button
-        type="submit"
-        disabled={pending}
-        className="btn-primary disabled:opacity-50"
-      >
+      <button type="submit" disabled={pending} className="btn-primary disabled:opacity-50">
         <Plus size={14} />
         Add
       </button>

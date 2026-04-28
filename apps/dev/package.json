@@ -8,11 +8,10 @@
     "start": "next start -p 3001",
     "lint": "next lint",
     "fs:scan": "tsx scripts/fs-scan.ts",
-    "gh:poll": "tsx scripts/github-poll.ts"
+    "gh:poll": "tsx scripts/github-poll.ts",
+    "discover": "tsx scripts/discover.ts"
   },
   "dependencies": {
-    "@pulse/db": "workspace:*",
-    "@pulse/obsidian-sync": "workspace:*",
     "clsx": "^2.1.1",
     "pg": "^8.20.0",
     "date-fns": "^3.6.0",

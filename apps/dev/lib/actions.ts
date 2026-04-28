@@ -70,6 +70,55 @@ export async function createProject(formData: FormData) {
   redirect(`/projects/${p.slug}`);
 }
 
+// ----------------------------------------------------------------------------
+// Bulk import (used by /projects/discover)
+// ----------------------------------------------------------------------------
+
+const DiscoveredInput = z.object({
+  name: z.string().trim().min(1),
+  slug: z.string().trim().min(1),
+  local_path: z.string().trim().min(1),
+  github_repo: z
+    .string()
+    .trim()
+    .nullish()
+    .transform(v => v || null),
+});
+
+export async function bulkCreateProjects(formData: FormData) {
+  const raw = formData.getAll('discover[]');
+  const candidates: z.infer<typeof DiscoveredInput>[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== 'string' || entry.length === 0) continue;
+    try {
+      const parsed = DiscoveredInput.parse(JSON.parse(entry));
+      candidates.push({
+        ...parsed,
+        slug: slugify(parsed.slug) || slugify(parsed.name),
+      });
+    } catch {
+      // Skip malformed rows; never crash the whole import on one bad entry.
+    }
+  }
+
+  for (const c of candidates) {
+    const p = await qOne<Project>(
+      `insert into dev.projects
+         (name, slug, state, local_path, github_repo)
+       values ($1, $2, 'active', $3, $4)
+       on conflict (slug) do nothing
+       returning *`,
+      [c.name, c.slug, c.local_path, c.github_repo]
+    );
+    if (!p) continue; // existing slug — idempotent skip
+    await markdownSync.upsert('project', p.id, projectFrontmatter(p), p.summary ?? '');
+  }
+
+  revalidatePath('/projects');
+  revalidatePath('/');
+  redirect('/projects');
+}
+
 export async function updateProjectField(
   id: string,
   patch: Partial<{

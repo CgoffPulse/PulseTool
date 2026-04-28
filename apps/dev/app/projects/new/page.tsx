@@ -5,26 +5,40 @@ import { PROJECT_STATES, PROJECT_STATE_LABEL } from '@/lib/types';
 
 export default function NewProjectPage() {
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto max-w-2xl space-y-8">
       <Link
         href="/projects"
-        className="flex items-center gap-1 text-xs text-slate-400 hover:text-indigo-soft"
+        className="flex items-center gap-1 text-xs text-charcoal/60 hover:text-amber-deep"
       >
         <ChevronLeft size={14} />
         Projects
       </Link>
 
       <header>
-        <h1 className="text-3xl font-bold text-slate-50">New project</h1>
-        <p className="mt-1 text-sm text-slate-400">
-          Anything you&apos;re building. The monitors will pick it up once you wire a
-          repo, local path, or Vercel project.
+        <span className="eyebrow">
+          <span>New project</span>
+        </span>
+        <h1 className="mt-3 font-display text-4xl font-black tracking-display text-green-deep">
+          What are you{' '}
+          <span className="italic-amber">building?</span>
+        </h1>
+        <p className="mt-2 max-w-xl text-sm text-charcoal/65">
+          Anything you&rsquo;re building. The monitors will pick it up once you
+          wire a GitHub repo, local path, or Vercel project ID.
         </p>
       </header>
 
-      <form action={createProject} className="space-y-5">
+      <form
+        action={createProject}
+        className="space-y-5 rounded-xl border border-cream-dk/60 bg-white p-6 shadow-sm"
+      >
         <Field label="Name" required>
-          <input name="name" required className="input" placeholder="Pulse Tool" />
+          <input
+            name="name"
+            required
+            className="input"
+            placeholder="Pulse Tool"
+          />
         </Field>
 
         <div className="grid gap-4 md:grid-cols-2">
@@ -42,7 +56,10 @@ export default function NewProjectPage() {
           </Field>
         </div>
 
-        <Field label="Current focus" hint="What you&apos;re working on right now.">
+        <Field
+          label="Current focus"
+          hint="What you're working on right now."
+        >
           <input
             name="current_focus"
             className="input"
@@ -61,14 +78,18 @@ export default function NewProjectPage() {
 
         <div className="grid gap-4 md:grid-cols-2">
           <Field label="GitHub repo" hint="owner/name">
-            <input name="github_repo" className="input" placeholder="acme/pulse-tool" />
+            <input
+              name="github_repo"
+              className="input font-mono"
+              placeholder="acme/pulse-tool"
+            />
           </Field>
           <Field label="Owner">
             <input name="owner" className="input" placeholder="christian" />
           </Field>
         </div>
 
-        <Field label="Local path">
+        <Field label="Local path" hint="for fs:scan + Open in Finder/Cursor">
           <input
             name="local_path"
             className="input font-mono text-xs"
@@ -76,8 +97,14 @@ export default function NewProjectPage() {
           />
         </Field>
 
-        <Field label="Vercel project ID" hint="from vercel.json or the Vercel dashboard">
-          <input name="vercel_project_id" className="input font-mono text-xs" />
+        <Field
+          label="Vercel project ID"
+          hint="from the Vercel dashboard — used for deploy polling + webhook routing"
+        >
+          <input
+            name="vercel_project_id"
+            className="input font-mono text-xs"
+          />
         </Field>
 
         <div className="flex items-center justify-end gap-3 pt-3">
@@ -106,10 +133,14 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-2xs uppercase tracking-eyebrow text-slate-400">
+      <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-eyebrow text-charcoal/65">
         {label}
         {required && <span className="ml-1 text-bad">*</span>}
-        {hint && <span className="ml-2 normal-case tracking-normal text-slate-500">{hint}</span>}
+        {hint && (
+          <span className="ml-2 normal-case tracking-normal text-charcoal/40">
+            {hint}
+          </span>
+        )}
       </span>
       {children}
     </label>
