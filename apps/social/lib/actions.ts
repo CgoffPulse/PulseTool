@@ -293,6 +293,88 @@ export async function seedCaptureItemsFromTemplate(input: {
   revalidateMonth(input.client_slug, input.month_slug);
 }
 
+export async function markAllRequiredCaptured(input: {
+  shoot_id: string;
+  client_slug: string;
+  month_slug: string;
+}) {
+  const sb = supabaseServer();
+  const now = new Date().toISOString();
+  const { data, error } = await sb
+    .from('capture_items')
+    .update({ is_captured: true, captured_at: now })
+    .eq('shoot_id', input.shoot_id)
+    .eq('is_required', true)
+    .eq('is_captured', false)
+    .select('id, linked_post_id');
+  if (error) throw error;
+  // Cascade: any linked posts in `planned` advance to `captured`.
+  const postIds = (data ?? []).map(r => r.linked_post_id).filter((x): x is string => !!x);
+  if (postIds.length > 0) {
+    const { data: planned } = await sb
+      .from('posts')
+      .select('id')
+      .in('id', postIds)
+      .eq('status', 'planned');
+    const ids = (planned ?? []).map(p => p.id);
+    if (ids.length > 0) {
+      await sb.from('posts').update({ status: 'captured' }).in('id', ids);
+    }
+  }
+  revalidateMonth(input.client_slug, input.month_slug);
+  return { swept: data?.length ?? 0 };
+}
+
+export async function bulkAddDriveUrlsAsExtras(input: {
+  shoot_id: string;
+  client_slug: string;
+  month_slug: string;
+  urls: string[];
+}) {
+  const cleaned = input.urls
+    .map(u => u.trim())
+    .filter(u => /^https?:\/\//i.test(u));
+  if (cleaned.length === 0) return { added: 0 };
+  const sb = supabaseServer();
+  const max = await sb
+    .from('capture_items')
+    .select('sort_index')
+    .eq('shoot_id', input.shoot_id)
+    .order('sort_index', { ascending: false })
+    .limit(1);
+  let next = ((max.data?.[0]?.sort_index as number) ?? -1) + 1;
+  const rows = cleaned.map(url => {
+    const label = labelForDriveUrl(url);
+    const row = {
+      shoot_id: input.shoot_id,
+      label,
+      is_required: false,
+      is_captured: true,
+      captured_at: new Date().toISOString(),
+      sort_index: next++,
+      notes: url,
+    };
+    return row;
+  });
+  const { error } = await sb.from('capture_items').insert(rows);
+  if (error) throw error;
+  revalidateMonth(input.client_slug, input.month_slug);
+  return { added: rows.length };
+}
+
+function labelForDriveUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes('drive.google.com')) {
+      const last = u.pathname.split('/').filter(Boolean).pop();
+      return `Drive · ${last?.slice(0, 24) ?? 'asset'}`;
+    }
+    return `${u.hostname.replace(/^www\./, '')} · ${u.pathname.split('/').filter(Boolean).pop()?.slice(0, 24) ?? 'asset'}`;
+  } catch {
+    return 'Bonus capture';
+  }
+}
+
 export async function addCaptureItem(input: {
   shoot_id: string;
   client_slug: string;

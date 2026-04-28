@@ -7,7 +7,19 @@
  * Each detector takes a typed snapshot — never the Supabase client — so this
  * file is fully unit-testable against fixtures.
  */
-import { addDays, differenceInCalendarDays, isAfter, isBefore, parseISO, startOfWeek, endOfWeek, isWithinInterval, format } from 'date-fns';
+import {
+  addDays,
+  getDaysInMonth,
+  differenceInCalendarDays,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isAfter,
+  isBefore,
+  isWithinInterval,
+  parseISO,
+  startOfWeek,
+} from 'date-fns';
 import {
   type Client,
   type ContentQuota,
@@ -78,6 +90,10 @@ export function runDetectors(snapshot: EngineSnapshot): NotificationDraft[] {
     ...detectShootUnassigned(ctx),
     ...detectCoverageGap(ctx),
     ...detectAssetOverdue(ctx),
+    ...detectMonthGenerationDue(ctx),
+    ...detectShootScheduleConflict(ctx),
+    ...detectRideAlongOpportunity(ctx),
+    ...detectQuotaShortfall(ctx),
   ];
 }
 
@@ -293,6 +309,198 @@ export function detectAssetOverdue(ctx: DetectorContext): NotificationDraft[] {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// 7. Month generation due — current month has ≤10 days left + next month
+//    has fewer than 5 posts. Fires earlier than detectMissingMonthPlan,
+//    which only nags inside the next-month-window. This pushes the team to
+//    open the AI month-drafter before the calendar pressure kicks in.
+// ─────────────────────────────────────────────────────────────────────────
+export function detectMonthGenerationDue(ctx: DetectorContext): NotificationDraft[] {
+  const drafts: NotificationDraft[] = [];
+  const today = ctx.today;
+  const currentMonthEnd = endOfMonth(today);
+  const daysUntilEom = differenceInCalendarDays(currentMonthEnd, today);
+  if (daysUntilEom > 10 || daysUntilEom < 0) return drafts;
+  const nextStart = nextMonthStart(today);
+  const monthSlug = format(nextStart, 'yyyy-MM');
+  for (const c of ctx.clients) {
+    if (c.archived) continue;
+    const monthRow = ctx.months.find(
+      m => m.client_id === c.id && m.month.startsWith(monthSlug)
+    );
+    const postCount = monthRow ? (ctx.postsByMonth.get(monthRow.id)?.length ?? 0) : 0;
+    if (postCount >= 5) continue;
+    drafts.push({
+      kind: 'month_generation_due',
+      severity: daysUntilEom <= 5 ? 'bad' : 'warn',
+      dedup_key: `month_generation_due:${c.id}:${monthSlug}`,
+      title: `Draft ${c.name}'s ${format(nextStart, 'MMMM')} now`,
+      detail:
+        postCount === 0
+          ? `Month ends in ${daysUntilEom}d. Open the AI drafter to seed next month.`
+          : `Only ${postCount} post(s) drafted; ${daysUntilEom}d to month-end.`,
+      link_url: `/clients/${c.slug}/months/${monthSlug}/planning`,
+      audience_role: 'strategy',
+      related_client_id: c.id,
+      related_month_id: monthRow?.id ?? null,
+    });
+  }
+  return drafts;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 8. Shoot schedule conflict — same person assigned to two shoots whose
+//    time slots overlap.
+// ─────────────────────────────────────────────────────────────────────────
+export function detectShootScheduleConflict(ctx: DetectorContext): NotificationDraft[] {
+  const drafts: NotificationDraft[] = [];
+  const seen = new Set<string>(); // dedup pairs (id-id) so we don't fire twice
+  const byPerson = new Map<string, Shoot[]>();
+  for (const s of ctx.shoots) {
+    if (!s.scheduled_date) continue;
+    if (!s.assigned_person_id) continue;
+    const arr = byPerson.get(s.assigned_person_id) ?? [];
+    arr.push(s);
+    byPerson.set(s.assigned_person_id, arr);
+  }
+  for (const [personId, shoots] of byPerson) {
+    if (shoots.length < 2) continue;
+    for (let i = 0; i < shoots.length; i++) {
+      for (let j = i + 1; j < shoots.length; j++) {
+        const a = shoots[i];
+        const b = shoots[j];
+        if (a.scheduled_date !== b.scheduled_date) continue;
+        if (!shootTimesOverlap(a, b)) continue;
+        const pairKey = [a.id, b.id].sort().join('::');
+        if (seen.has(pairKey)) continue;
+        seen.add(pairKey);
+        const monthA = ctx.monthById.get(a.month_id);
+        const clientA = monthA ? ctx.clientById.get(monthA.client_id) : null;
+        const monthB = ctx.monthById.get(b.month_id);
+        const clientB = monthB ? ctx.clientById.get(monthB.client_id) : null;
+        drafts.push({
+          kind: 'shoot_schedule_conflict',
+          severity: 'bad',
+          dedup_key: `schedule_conflict:${pairKey}`,
+          title: `Schedule clash on ${format(parseISO(a.scheduled_date!), 'EEE MMM d')}`,
+          detail: `${clientA?.name ?? '?'} Shoot ${a.bundle_number}${a.scheduled_time ? ` ${a.scheduled_time}` : ''} overlaps with ${clientB?.name ?? '?'} Shoot ${b.bundle_number}${b.scheduled_time ? ` ${b.scheduled_time}` : ''}.`,
+          link_url: linkPlanning(clientA, monthA),
+          audience_person_id: personId,
+          audience_role: 'producer',
+          related_shoot_id: a.id,
+          related_client_id: clientA?.id ?? null,
+          related_month_id: a.month_id,
+        });
+      }
+    }
+  }
+  return drafts;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 9. Ride-along opportunity — a Pulse-as-its-own-client post is unbundled
+//    (no shoot_id) but a non-Pulse client has a scheduled shoot inside the
+//    same 14-day window. Surface the chance to piggyback BTS capture.
+// ─────────────────────────────────────────────────────────────────────────
+export function detectRideAlongOpportunity(ctx: DetectorContext): NotificationDraft[] {
+  const drafts: NotificationDraft[] = [];
+  const pulseClient = ctx.clients.find(c => c.slug === 'pulse');
+  if (!pulseClient) return drafts;
+  // Pulse months and their unbundled posts.
+  const pulseMonthIds = new Set(
+    ctx.months.filter(m => m.client_id === pulseClient.id).map(m => m.id)
+  );
+  const candidatePosts = ctx.posts.filter(
+    p => pulseMonthIds.has(p.month_id) && !p.shoot_id && p.status === 'planned'
+  );
+  if (candidatePosts.length === 0) return drafts;
+  // Non-Pulse shoots with a date in the future.
+  const nonPulseDatedShoots = ctx.shoots.filter(s => {
+    if (!s.scheduled_date) return false;
+    const month = ctx.monthById.get(s.month_id);
+    if (!month) return false;
+    if (month.client_id === pulseClient.id) return false;
+    const d = parseISO(s.scheduled_date);
+    return !isBefore(d, ctx.today);
+  });
+  for (const post of candidatePosts) {
+    const postDate = parseISO(post.post_date);
+    for (const shoot of nonPulseDatedShoots) {
+      const shootDate = parseISO(shoot.scheduled_date!);
+      const days = Math.abs(differenceInCalendarDays(postDate, shootDate));
+      if (days > 14) continue;
+      const hostMonth = ctx.monthById.get(shoot.month_id);
+      const hostClient = hostMonth ? ctx.clientById.get(hostMonth.client_id) : null;
+      drafts.push({
+        kind: 'ride_along_opportunity',
+        severity: 'info',
+        dedup_key: `ride_along:${post.id}:${shoot.id}`,
+        title: `Piggyback on ${hostClient?.name ?? 'shoot'} for Pulse content`,
+        detail: `Pulse post ${format(postDate, 'MMM d')} is unbundled; ${hostClient?.name ?? 'a client'} shoot is ${days}d away${shoot.location ? ` at ${shoot.location}` : ''}.`,
+        link_url: linkPlanning(pulseClient, ctx.monthById.get(post.month_id) ?? null),
+        audience_role: 'producer',
+        related_post_id: post.id,
+        related_shoot_id: shoot.id,
+        related_client_id: pulseClient.id,
+        related_month_id: post.month_id,
+      });
+      break; // one notification per Pulse post is enough
+    }
+  }
+  return drafts;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 10. Quota shortfall — calendar-paced version of coverage gap. Fires when
+//     planned posts trail the day-of-month / days-in-month ratio of the
+//     monthly quota by 30%+. This catches "underplanned month" much
+//     earlier than detectCoverageGap, which only nags in the back half.
+// ─────────────────────────────────────────────────────────────────────────
+export function detectQuotaShortfall(ctx: DetectorContext): NotificationDraft[] {
+  const drafts: NotificationDraft[] = [];
+  for (const month of ctx.months) {
+    const monthStart = parseISO(month.month);
+    const dim = getDaysInMonth(monthStart);
+    const monthEndDate = addDays(monthStart, dim - 1);
+    if (isBefore(monthEndDate, ctx.today)) continue; // past
+    if (isAfter(monthStart, ctx.today)) continue; // future month — too early
+    const elapsed = Math.max(0, differenceInCalendarDays(ctx.today, monthStart) + 1);
+    const pace = elapsed / dim; // 0..1
+    if (pace < 0.25) continue; // skip the first quarter — too noisy
+    const client = ctx.clientById.get(month.client_id);
+    if (!client) continue;
+    const quota = ctx.quotas.find(q => q.client_id === client.id && q.month === month.month);
+    if (!quota) continue;
+    const totalTarget =
+      (quota.reels_target ?? 0) +
+      (quota.photos_target ?? 0) +
+      (quota.carousels_target ?? 0) +
+      (quota.stories_target ?? 0) +
+      (quota.videos_target ?? 0) +
+      (quota.graphics_target ?? 0);
+    if (totalTarget === 0) continue;
+    const planned = (ctx.postsByMonth.get(month.id) ?? []).length;
+    const expected = Math.ceil(totalTarget * pace);
+    const shortBy = expected - planned;
+    if (shortBy <= 0) continue;
+    const ratio = planned / expected;
+    if (ratio > 0.7) continue; // within 30% of pace — fine
+    const daysLeft = differenceInCalendarDays(monthEndDate, ctx.today);
+    drafts.push({
+      kind: 'quota_shortfall',
+      severity: ratio < 0.4 ? 'bad' : 'warn',
+      dedup_key: `quota_shortfall:${month.id}`,
+      title: `${client.name} trailing pace for ${format(monthStart, 'MMM yyyy')}`,
+      detail: `${planned}/${totalTarget} planned; expected ~${expected} by today (${daysLeft}d left).`,
+      link_url: `/clients/${client.slug}/months/${month.month.slice(0, 7)}/planning`,
+      audience_role: 'strategy',
+      related_client_id: client.id,
+      related_month_id: month.id,
+    });
+  }
+  return drafts;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // helpers
 // ─────────────────────────────────────────────────────────────────────────
 function linkPlanning(client: Client | null | undefined, month: MonthRow | null | undefined) {
@@ -310,6 +518,31 @@ function nextMonthStart(today: Date): Date {
   d.setMonth(d.getMonth() + 1);
   d.setHours(0, 0, 0, 0);
   return d;
+}
+
+/**
+ * True when two same-day shoots have overlapping time windows. We only
+ * have scheduled_time (a free-text "HH:MM" or null) and a template's
+ * duration string ("3 hours", "30 min", etc) — so we approximate with a
+ * 2-hour default window if the duration doesn't parse. If either side
+ * has no time, treat as overlap (conservative — let the team decide).
+ */
+function shootTimesOverlap(a: Shoot, b: Shoot): boolean {
+  const aMinutes = parseTimeToMinutes(a.scheduled_time);
+  const bMinutes = parseTimeToMinutes(b.scheduled_time);
+  if (aMinutes == null || bMinutes == null) return true;
+  const aDur = 120;
+  const bDur = 120;
+  const aEnd = aMinutes + aDur;
+  const bEnd = bMinutes + bDur;
+  return aMinutes < bEnd && bMinutes < aEnd;
+}
+
+function parseTimeToMinutes(t: string | null | undefined): number | null {
+  if (!t) return null;
+  const m = t.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  return Number(m[1]) * 60 + Number(m[2]);
 }
 
 function parseCadenceTarget(cadence: string | null | undefined): number | null {

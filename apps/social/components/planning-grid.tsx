@@ -18,6 +18,7 @@ import {
 import { StatusPipeline } from './status-pipeline';
 import {
   assignShootToPerson,
+  bulkAddDriveUrlsAsExtras,
   createPost,
   createShoot,
   deletePost,
@@ -693,11 +694,17 @@ function ShootBundles({
                 </Field>
               </div>
 
+              <BulkDrivePaste
+                shootId={s.id}
+                clientSlug={clientSlug}
+                monthSlug={monthSlug}
+              />
+
               <a
                 href={`/clients/${clientSlug}/months/${monthSlug}/shoots/${s.bundle_number}/shotlist`}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-6 block rounded-md bg-green-deep py-3 text-center text-xs uppercase tracking-label text-cream transition-colors duration-fast hover:bg-charcoal"
+                className="mt-3 block rounded-md bg-green-deep py-3 text-center text-xs uppercase tracking-label text-cream transition-colors duration-fast hover:bg-charcoal"
               >
                 Open shot list →
               </a>
@@ -706,6 +713,90 @@ function ShootBundles({
         })}
       </div>
     </section>
+  );
+}
+
+function BulkDrivePaste({
+  shootId,
+  clientSlug,
+  monthSlug,
+}: {
+  shootId: string;
+  clientSlug: string;
+  monthSlug: string;
+}) {
+  const router = useRouter();
+  const [, start] = useTransition();
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = () => {
+    const urls = text
+      .split(/\s+/)
+      .map(s => s.trim())
+      .filter(Boolean);
+    if (urls.length === 0) return;
+    setBusy(true);
+    start(async () => {
+      try {
+        await bulkAddDriveUrlsAsExtras({
+          shoot_id: shootId,
+          client_slug: clientSlug,
+          month_slug: monthSlug,
+          urls,
+        });
+        setText('');
+        setOpen(false);
+        router.refresh();
+      } finally {
+        setBusy(false);
+      }
+    });
+  };
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-5 inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-amber-mid/50 bg-cream-lt px-3 py-2 text-[11px] uppercase tracking-eyebrow text-amber-deep hover:bg-amber-light/40"
+      >
+        <Link2 size={11} />
+        Bulk-paste Drive URLs
+      </button>
+    );
+  }
+  return (
+    <div className="mt-5 rounded-md border border-amber-mid/40 bg-amber-light/15 p-3">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] uppercase tracking-eyebrow text-amber-deep">
+          Drop in Drive links — one per line
+        </span>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="text-[10px] uppercase tracking-eyebrow text-charcoal/55 hover:text-charcoal"
+        >
+          Cancel
+        </button>
+      </div>
+      <textarea
+        rows={3}
+        value={text}
+        onChange={e => setText(e.target.value)}
+        placeholder="https://drive.google.com/...&#10;https://drive.google.com/..."
+        className="mt-2 w-full rounded-md border border-cream-dk bg-white px-3 py-2 text-xs text-charcoal placeholder:text-charcoal/35 focus:border-amber-mid focus:outline-none focus:ring-2 focus:ring-amber-mid/20"
+      />
+      <button
+        type="button"
+        onClick={submit}
+        disabled={busy || text.trim().length === 0}
+        className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-amber-deep px-3 py-2 text-[11px] uppercase tracking-eyebrow text-cream-lt hover:bg-charcoal disabled:opacity-40"
+      >
+        {busy ? 'Adding…' : 'Add as captured extras'}
+      </button>
+    </div>
   );
 }
 

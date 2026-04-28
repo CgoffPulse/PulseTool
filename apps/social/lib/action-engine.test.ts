@@ -5,6 +5,10 @@ import {
   detectCoverageGap,
   detectLeadTimeTight,
   detectMissingMonthPlan,
+  detectMonthGenerationDue,
+  detectQuotaShortfall,
+  detectRideAlongOpportunity,
+  detectShootScheduleConflict,
   detectShootUnassigned,
   detectStuckPosts,
   runDetectors,
@@ -303,6 +307,179 @@ describe('detectCoverageGap', () => {
     const earlyMay = new Date('2026-05-04');
     const snap = makeSnapshot({ today: earlyMay, posts: [] });
     expect(detectCoverageGap(ctxFromSnapshot(snap))).toHaveLength(0);
+  });
+});
+
+describe('detectMonthGenerationDue', () => {
+  it('fires when current month has ≤10 days left and next month is empty', () => {
+    const lateMay = new Date('2026-05-22'); // 9 days to month-end
+    const snap = makeSnapshot({ today: lateMay });
+    const drafts = detectMonthGenerationDue(ctxFromSnapshot(snap));
+    const onscDraft = drafts.find(d => d.related_client_id === 'c1');
+    expect(onscDraft).toBeDefined();
+    expect(onscDraft!.kind).toBe('month_generation_due');
+    expect(onscDraft!.dedup_key).toBe('month_generation_due:c1:2026-06');
+    expect(onscDraft!.severity).toBe('warn');
+  });
+
+  it('escalates to bad inside the last 5 days', () => {
+    const veryLateMay = new Date('2026-05-28'); // 3 days left
+    const snap = makeSnapshot({ today: veryLateMay });
+    const drafts = detectMonthGenerationDue(ctxFromSnapshot(snap));
+    const onscDraft = drafts.find(d => d.related_client_id === 'c1');
+    expect(onscDraft!.severity).toBe('bad');
+  });
+
+  it('does not fire if next month already has 5+ posts', () => {
+    const lateMay = new Date('2026-05-22');
+    const juneMonth: MonthRow = { ...may, id: 'm_jun', month: '2026-06-01' };
+    const junePosts: Post[] = Array.from({ length: 6 }, (_, i) =>
+      post(`pj${i}`, { month_id: 'm_jun', post_date: '2026-06-05' })
+    );
+    const snap = makeSnapshot({ today: lateMay, months: [may, juneMonth], posts: junePosts });
+    expect(detectMonthGenerationDue(ctxFromSnapshot(snap))).toHaveLength(0);
+  });
+
+  it('skips far from month-end', () => {
+    const earlyMay = new Date('2026-05-04'); // 27 days left
+    const snap = makeSnapshot({ today: earlyMay });
+    expect(detectMonthGenerationDue(ctxFromSnapshot(snap))).toHaveLength(0);
+  });
+});
+
+describe('detectShootScheduleConflict', () => {
+  it('fires when one person has two same-day shoots whose 2h windows overlap', () => {
+    const snap = makeSnapshot({
+      shoots: [
+        shoot('s1', { scheduled_date: '2026-05-08', scheduled_time: '10:00', assigned_person_id: 'p_trey' }),
+        shoot('s2', { scheduled_date: '2026-05-08', scheduled_time: '11:00', assigned_person_id: 'p_trey', bundle_number: 2 }),
+      ],
+    });
+    const drafts = detectShootScheduleConflict(ctxFromSnapshot(snap));
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0].kind).toBe('shoot_schedule_conflict');
+    expect(drafts[0].audience_person_id).toBe('p_trey');
+  });
+
+  it('does not fire when shoots are on different days', () => {
+    const snap = makeSnapshot({
+      shoots: [
+        shoot('s1', { scheduled_date: '2026-05-08', scheduled_time: '10:00', assigned_person_id: 'p_trey' }),
+        shoot('s2', { scheduled_date: '2026-05-09', scheduled_time: '10:00', assigned_person_id: 'p_trey', bundle_number: 2 }),
+      ],
+    });
+    expect(detectShootScheduleConflict(ctxFromSnapshot(snap))).toHaveLength(0);
+  });
+
+  it('does not fire when same day but non-overlapping windows', () => {
+    const snap = makeSnapshot({
+      shoots: [
+        shoot('s1', { scheduled_date: '2026-05-08', scheduled_time: '08:00', assigned_person_id: 'p_trey' }),
+        shoot('s2', { scheduled_date: '2026-05-08', scheduled_time: '14:00', assigned_person_id: 'p_trey', bundle_number: 2 }),
+      ],
+    });
+    expect(detectShootScheduleConflict(ctxFromSnapshot(snap))).toHaveLength(0);
+  });
+});
+
+describe('detectRideAlongOpportunity', () => {
+  const pulseClient: Client = {
+    id: 'c_pulse', name: 'Pulse', slug: 'pulse', color: '#27452b', archived: false,
+  };
+  const pulseMonth: MonthRow = {
+    id: 'm_pulse_may', client_id: 'c_pulse', month: '2026-05-01',
+    cadence_override: null, status: 'draft',
+  };
+
+  it('fires when an unbundled Pulse post sits within 14 days of a non-Pulse shoot', () => {
+    const onscShoot = shoot('s_onsc', {
+      scheduled_date: '2026-05-10',
+      assigned_person_id: 'p_trey',
+    });
+    const pulsePost = post('p_pulse', {
+      month_id: 'm_pulse_may',
+      post_date: '2026-05-12',
+      shoot_id: null,
+      status: 'planned',
+    });
+    const snap = makeSnapshot({
+      clients: [onsc, pulseClient],
+      months: [may, pulseMonth],
+      shoots: [onscShoot],
+      posts: [pulsePost],
+    });
+    const drafts = detectRideAlongOpportunity(ctxFromSnapshot(snap));
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0].kind).toBe('ride_along_opportunity');
+    expect(drafts[0].related_client_id).toBe('c_pulse');
+    expect(drafts[0].related_shoot_id).toBe('s_onsc');
+  });
+
+  it('does not fire when the only nearby shoot is also a Pulse shoot', () => {
+    const pulseShoot = shoot('s_pulse', {
+      month_id: 'm_pulse_may',
+      scheduled_date: '2026-05-10',
+    });
+    const pulsePost = post('p_pulse', {
+      month_id: 'm_pulse_may',
+      post_date: '2026-05-12',
+      shoot_id: null,
+    });
+    const snap = makeSnapshot({
+      clients: [onsc, pulseClient],
+      months: [may, pulseMonth],
+      shoots: [pulseShoot],
+      posts: [pulsePost],
+    });
+    expect(detectRideAlongOpportunity(ctxFromSnapshot(snap))).toHaveLength(0);
+  });
+
+  it('does not fire when shoots are >14 days from the Pulse post', () => {
+    const onscShoot = shoot('s_onsc', { scheduled_date: '2026-06-10' });
+    const pulsePost = post('p_pulse', {
+      month_id: 'm_pulse_may',
+      post_date: '2026-05-12',
+      shoot_id: null,
+    });
+    const snap = makeSnapshot({
+      clients: [onsc, pulseClient],
+      months: [may, pulseMonth],
+      shoots: [onscShoot],
+      posts: [pulsePost],
+    });
+    expect(detectRideAlongOpportunity(ctxFromSnapshot(snap))).toHaveLength(0);
+  });
+});
+
+describe('detectQuotaShortfall', () => {
+  it('fires when planned trails calendar pace by 30%+', () => {
+    // Mid-May (15/31 ≈ 48% elapsed). Quota total = 6+40+5+28+2+8 = 89.
+    // Expected ≈ 43; only 5 planned → ratio ~0.12 → bad.
+    const midMay = new Date('2026-05-15');
+    const posts: Post[] = Array.from({ length: 5 }, (_, i) =>
+      post(`p${i}`, { post_date: '2026-05-05' })
+    );
+    const snap = makeSnapshot({ today: midMay, posts });
+    const drafts = detectQuotaShortfall(ctxFromSnapshot(snap));
+    const draft = drafts.find(d => d.dedup_key === 'quota_shortfall:m_may');
+    expect(draft).toBeDefined();
+    expect(draft!.severity).toBe('bad');
+  });
+
+  it('does not fire when planned matches pace within 30%', () => {
+    const midMay = new Date('2026-05-15');
+    // ~50% elapsed × 89 ≈ 44 expected; ship 35 → ratio 0.79 → fine.
+    const posts: Post[] = Array.from({ length: 35 }, (_, i) =>
+      post(`p${i}`, { post_date: '2026-05-05' })
+    );
+    const snap = makeSnapshot({ today: midMay, posts });
+    expect(detectQuotaShortfall(ctxFromSnapshot(snap))).toHaveLength(0);
+  });
+
+  it('does not fire in the first quarter of the month', () => {
+    const earlyMay = new Date('2026-05-04');
+    const snap = makeSnapshot({ today: earlyMay, posts: [] });
+    expect(detectQuotaShortfall(ctxFromSnapshot(snap))).toHaveLength(0);
   });
 });
 

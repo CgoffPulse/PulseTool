@@ -2,10 +2,11 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Sparkles, Wand2, X } from 'lucide-react';
+import { CheckCheck, Plus, Sparkles, Wand2, X } from 'lucide-react';
 import {
   addCaptureItem,
   deleteCaptureItem,
+  markAllRequiredCaptured,
   seedCaptureItemsFromTemplate,
   updateCaptureItem,
 } from '@/lib/actions';
@@ -50,6 +51,18 @@ export function CaptureChecklist({
       });
       router.refresh();
     });
+
+  const sweepRequired = () =>
+    start(async () => {
+      await markAllRequiredCaptured({
+        shoot_id: shootId,
+        client_slug: clientSlug,
+        month_slug: monthSlug,
+      });
+      router.refresh();
+    });
+
+  const requiredOpen = required.length - requiredCaptured;
 
   const toggle = (id: string, captured: boolean) =>
     start(async () => {
@@ -134,11 +147,24 @@ export function CaptureChecklist({
               Lock these in first. Everything else is bonus.
             </p>
           </div>
-          {required.length > 0 ? (
-            <span className="rounded-full bg-green-deep px-3 py-1 text-[10px] font-semibold uppercase tracking-eyebrow text-cream tabular-nums">
-              {requiredCaptured} / {required.length}
-            </span>
-          ) : null}
+          <div className="flex items-center gap-2">
+            {requiredOpen > 0 ? (
+              <button
+                type="button"
+                onClick={sweepRequired}
+                className="no-print inline-flex items-center gap-1.5 rounded-md border border-green-deep/30 bg-white px-3 py-1.5 text-[10px] uppercase tracking-eyebrow text-green-deep hover:bg-green-deep hover:text-cream"
+                title={`Mark all ${requiredOpen} open required items captured`}
+              >
+                <CheckCheck size={12} />
+                Mark all captured
+              </button>
+            ) : null}
+            {required.length > 0 ? (
+              <span className="rounded-full bg-green-deep px-3 py-1 text-[10px] font-semibold uppercase tracking-eyebrow text-cream tabular-nums">
+                {requiredCaptured} / {required.length}
+              </span>
+            ) : null}
+          </div>
         </header>
 
         {required.length === 0 ? (
