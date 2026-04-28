@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "plugins": [{ "name": "next" }],
+    "paths": {
+      "@/*": ["./*"],
+      "@pulse/db": ["../../packages/db/src/index.ts"],
+      "@pulse/db/server": ["../../packages/db/src/server.ts"],
+      "@pulse/db/browser": ["../../packages/db/src/browser.ts"],
+      "@pulse/db/types": ["../../packages/db/src/shared-types.ts"],
+      "@pulse/obsidian-sync": ["../../packages/obsidian-sync/src/index.ts"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": ["node_modules", ".next"]
+}

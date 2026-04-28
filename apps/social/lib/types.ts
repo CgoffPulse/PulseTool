@@ -143,6 +143,7 @@ export interface Shoot {
   scheduled_time: string | null;
   location: string | null;
   assigned_to: string | null;
+  assigned_person_id: string | null;
   asset_status: ShootAssetStatus;
   drive_folder_url: string | null;
   notes: string | null;
@@ -166,7 +167,95 @@ export interface Post {
   status: PostStatus;
   asset_ready: boolean;
   asset_url: string | null;
+  owner_person_id: string | null;
   sort_index: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// People + Notifications (Phase 2.1)
+// ─────────────────────────────────────────────────────────────────────────
+
+export type PersonRole = 'field' | 'strategy' | 'producer' | 'editor' | 'approver';
+
+export const PERSON_ROLE_LABEL: Record<PersonRole, string> = {
+  field: 'Field',
+  strategy: 'Strategy',
+  producer: 'Producer',
+  editor: 'Editor',
+  approver: 'Approver',
+};
+
+export interface Person {
+  id: string;
+  name: string;
+  role: PersonRole;
+  color: string;
+  archived: boolean;
+}
+
+export type NotificationSeverity = 'info' | 'warn' | 'bad';
+
+export type NotificationKind =
+  | 'today_action'
+  | 'stuck_post'
+  | 'lead_time_tight'
+  | 'missing_month_plan'
+  | 'coverage_gap'
+  | 'shoot_unassigned'
+  | 'asset_overdue'
+  | 'month_generation_due'
+  | 'shoot_schedule_conflict'
+  | 'ride_along_opportunity'
+  | 'quota_shortfall';
+
+export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
+  today_action: 'Today',
+  stuck_post: 'Stuck post',
+  lead_time_tight: 'Lead time tight',
+  missing_month_plan: 'Missing plan',
+  coverage_gap: 'Coverage gap',
+  shoot_unassigned: 'Shoot unassigned',
+  asset_overdue: 'Asset overdue',
+  month_generation_due: 'Plan due',
+  shoot_schedule_conflict: 'Schedule conflict',
+  ride_along_opportunity: 'Ride-along opportunity',
+  quota_shortfall: 'Quota shortfall',
+};
+
+export interface NotificationRow {
+  id: string;
+  kind: NotificationKind;
+  severity: NotificationSeverity;
+  audience_role: PersonRole | null;
+  audience_person_id: string | null;
+  dedup_key: string;
+  title: string;
+  detail: string | null;
+  link_url: string | null;
+  related_post_id: string | null;
+  related_shoot_id: string | null;
+  related_client_id: string | null;
+  related_month_id: string | null;
+  dismissed_at: string | null;
+  resolved_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Input shape used by the action engine to upsert. */
+export interface NotificationDraft {
+  kind: NotificationKind;
+  severity: NotificationSeverity;
+  dedup_key: string;
+  title: string;
+  detail?: string | null;
+  link_url?: string | null;
+  audience_role?: PersonRole | null;
+  audience_person_id?: string | null;
+  related_post_id?: string | null;
+  related_shoot_id?: string | null;
+  related_client_id?: string | null;
+  related_month_id?: string | null;
 }
 
 export interface CaptureItem {

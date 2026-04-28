@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html,
+  body {
+    background-color: theme('colors.ink.deep');
+    color: theme('colors.slate.100');
+  }
+
+  body {
+    background-image:
+      radial-gradient(ellipse 80% 60% at 50% -10%, theme('colors.indigo.ghost' / 30%), transparent 60%),
+      radial-gradient(ellipse 60% 40% at 90% 10%, theme('colors.sky.deep' / 12%), transparent 60%);
+    background-attachment: fixed;
+  }
+
+  ::selection {
+    background-color: theme('colors.indigo.DEFAULT' / 35%);
+    color: theme('colors.slate.50');
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-lg border border-slate-500/30 bg-ink-mid/60 backdrop-blur-sm;
+  }
+
+  .panel-quiet {
+    @apply rounded-lg border border-slate-500/20 bg-ink-mid/30;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-2xs uppercase tracking-eyebrow;
+  }
+
+  .btn {
+    @apply inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-fast;
+  }
+
+  .btn-primary {
+    @apply btn bg-indigo text-white hover:bg-indigo-deep;
+  }
+
+  .btn-ghost {
+    @apply btn border border-slate-500/30 bg-transparent text-slate-100 hover:bg-slate-500/10;
+  }
+
+  .input {
+    @apply w-full rounded-md border border-slate-500/30 bg-ink-mid px-3 py-2 text-sm text-slate-50 placeholder:text-slate-400 focus:border-indigo-soft focus:outline-none focus:ring-1 focus:ring-indigo-soft;
+  }
+}
