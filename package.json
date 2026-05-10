@@ -2,14 +2,12 @@
   "name": "pulse-ecosystem",
   "version": "0.1.0",
   "private": true,
-  "description": "Pulse agency tools ecosystem (monorepo). Each tool is an independent app under apps/*; cross-tool code lives in packages/*.",
+  "description": "Pulse — the agency operating engine. Consolidated monorepo (apps/pulse) with route groups for command, social, voice, crm, analytics, dev. Cross-tool code lives in packages/*.",
   "scripts": {
-    "dev:pulse": "pnpm --filter @pulse/pulse dev",
-    "dev:social": "pnpm --filter @pulse/social dev",
-    "dev:dev": "pnpm --filter @pulse/dev dev",
+    "dev": "pnpm --filter @pulse/pulse dev",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
-    "test": "pnpm -r test",
+    "test": "pnpm --filter @pulse/pulse test",
     "migrate": "pnpm --filter @pulse/db migrate",
     "check:migrations": "pnpm --filter @pulse/db check"
   },

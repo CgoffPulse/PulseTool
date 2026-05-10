@@ -2,6 +2,17 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "crons": [
-    { "path": "/api/cron/refresh-monitors", "schedule": "0 */6 * * *" }
+    { "path": "/api/cron/regenerate-notifications", "schedule": "0 13 * * *" },
+    { "path": "/api/cron/crm-followups", "schedule": "0 13 * * *" },
+    { "path": "/api/cron/refresh-monitors", "schedule": "0 */6 * * *" },
+    { "path": "/api/cron/ingest-meta", "schedule": "0 */6 * * *" },
+    { "path": "/api/cron/ingest-ga4", "schedule": "0 */6 * * *" },
+    { "path": "/api/cron/generate-insights", "schedule": "30 13 * * *" },
+    { "path": "/api/cron/generate-recommendations", "schedule": "0 14 * * *" },
+    { "path": "/api/cron/tag-posts", "schedule": "0 5 * * *" },
+    { "path": "/api/cron/signals-ingest", "schedule": "*/10 * * * *" },
+    { "path": "/api/cron/signals-auto-close", "schedule": "*/15 * * * *" },
+    { "path": "/api/cron/digest-weekly", "schedule": "0 13 * * 1" },
+    { "path": "/api/cron/digest-monthly-client", "schedule": "0 14 1 * *" }
   ]
 }
