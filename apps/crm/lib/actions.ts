@@ -233,8 +233,16 @@ export async function archiveLead(formData: FormData) {
 
 export async function promoteLead(formData: FormData) {
   const id = z.string().uuid().parse(formData.get('id'));
-  const lead = await qOne<{ name: string; company: string | null; client_id: string | null; stage: LeadStage }>(
-    `select name, company, client_id, stage::text as stage
+  const lead = await qOne<{
+    name: string;
+    company: string | null;
+    client_id: string | null;
+    stage: LeadStage;
+    value_cents: number | null;
+    notes: string | null;
+  }>(
+    `select name, company, client_id, stage::text as stage,
+            value_cents, notes
        from crm.leads where id = $1`,
     [id]
   );
@@ -243,12 +251,21 @@ export async function promoteLead(formData: FormData) {
     revalidatePath(`/leads/${id}`);
     return;
   }
-  const promoted = await promoteLeadToClient(lead.name, lead.company);
+  // Pass the lead's value + notes into the cascade so it can pick a tier
+  // and stamp the brief with provenance. The cascade also writes its own
+  // welcome notification (`onboarding:<slug>:welcome`) so we no longer need
+  // to upsert one here.
+  const promoted = await promoteLeadToClient(lead.name, lead.company, {
+    valueCents: lead.value_cents,
+    notes: lead.notes,
+  });
   if (!promoted) {
     throw new Error('Could not create client — is the social tool reachable?');
   }
   await q(`update crm.leads set client_id = $1 where id = $2`, [promoted.id, id]);
-  // Make the social tool aware via notification bell.
+  // Keep the legacy CRM-promoted notification too, so the social bell shows
+  // the link back into the CRM lead. The cascade's notification covers the
+  // strategy team's "new client" surface; this one is for traceability.
   await upsertNotification({
     dedup_key: `crm-promoted-${promoted.id}`,
     title: `New client onboarded: ${promoted.name}`,
