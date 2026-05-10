@@ -1,537 +1,327 @@
 import Link from 'next/link';
 import {
-  AlertTriangle,
-  ArrowRight,
-  Briefcase,
-  CalendarDays,
-  Cpu,
-  GitBranch,
-  Mic,
+  ArrowUpRight,
+  CalendarClock,
+  Camera,
+  CheckCircle2,
   ShieldCheck,
-  Sparkles,
-  TrendingDown,
-  Users,
 } from 'lucide-react';
+import { TaskRow } from '@/components/task-row';
+import { WorkKindChip } from '@/components/state-chip';
 import {
-  getBrandLane,
-  getCapacityLane,
-  getCodeLane,
-  getContentLane,
-  getMoneyLane,
-  getPerformanceLane,
-} from '@/lib/queries';
-import { formatCents, formatMoneyFull, timeAgo } from '@/lib/format';
+  getAgencyObjectives,
+  getApprovalsQueue,
+  getPeopleRoster,
+  getPersonPlate,
+  getRecentShipments,
+} from '@/lib/command-queries';
+import type { PersonPlate } from '@/lib/types';
 
-export default async function HuddlePage() {
-  const [money, content, code, brand, perf, capacity] = await Promise.all([
-    getMoneyLane(),
-    getContentLane(),
-    getCodeLane(),
-    getBrandLane(),
-    getPerformanceLane(),
-    getCapacityLane(),
+export const dynamic = 'force-dynamic';
+
+export default async function CommandHomePage() {
+  const [approvals, objectives, roster, shipments] = await Promise.all([
+    getApprovalsQueue(),
+    getAgencyObjectives(),
+    getPeopleRoster(),
+    getRecentShipments(),
   ]);
 
-  const stalledOrFailing =
-    money.stalled_count > 0 ||
-    code.failing_deploys_24h > 0 ||
-    code.dirty_repos > 3 ||
-    money.follow_ups_today > 0;
+  // Hydrate plates for each person (parallel).
+  const plates: PersonPlate[] = (
+    await Promise.all(roster.slice(0, 10).map(r => getPersonPlate(r.person.id)))
+  ).filter((p): p is PersonPlate => p !== null);
+
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
+  const oldestApproval = approvals[0] ?? null;
 
   return (
-    <div className="flex flex-col gap-10">
-      <Hero
-        money={money}
-        content={content}
-        code={code}
-        brand={brand}
-        perf={perf}
-      />
+    <div className="flex flex-col gap-12">
+      <header className="flex flex-col gap-6 lg:grid lg:grid-cols-[2fr_1fr] lg:items-start lg:gap-10">
+        <div className="flex flex-col gap-3">
+          <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-stone-500">
+            {today}
+          </span>
+          <h1 className="font-display text-5xl font-semibold tracking-tight text-stone-900">
+            Pulse Command
+          </h1>
+          <p className="max-w-2xl text-[15px] leading-[1.55] text-stone-600">
+            One screen for the agency. Decide where your time goes today, then let the system run
+            the rest.
+          </p>
+        </div>
+        <ApprovalsStrip
+          count={approvals.length}
+          oldest={oldestApproval}
+        />
+      </header>
 
-      {stalledOrFailing && (
-        <section className="flex flex-col gap-3">
-          <span className="eyebrow">Today, in one line</span>
-          <div className="rounded-md border border-amber-mid/40 bg-cream/40 p-4">
-            <ul className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-charcoal/85">
-              {money.follow_ups_today > 0 && (
-                <li>
-                  <strong className="font-mono tabular-nums text-amber-deep">
-                    {money.follow_ups_today}
-                  </strong>{' '}
-                  follow-up{money.follow_ups_today === 1 ? '' : 's'} due
-                </li>
-              )}
-              {money.stalled_count > 0 && (
-                <li>
-                  <strong className="font-mono tabular-nums text-bad">
-                    {money.stalled_count}
-                  </strong>{' '}
-                  stalled lead{money.stalled_count === 1 ? '' : 's'}
-                </li>
-              )}
-              {code.failing_deploys_24h > 0 && (
-                <li>
-                  <strong className="font-mono tabular-nums text-bad">
-                    {code.failing_deploys_24h}
-                  </strong>{' '}
-                  failing deploy{code.failing_deploys_24h === 1 ? '' : 's'} in 24h
-                </li>
-              )}
-              {code.dirty_repos > 0 && (
-                <li>
-                  <strong className="font-mono tabular-nums text-amber-deep">
-                    {code.dirty_repos}
-                  </strong>{' '}
-                  dirty repo{code.dirty_repos === 1 ? '' : 's'}
-                </li>
-              )}
-              {content.unbundled_posts > 0 && (
-                <li>
-                  <strong className="font-mono tabular-nums">{content.unbundled_posts}</strong>{' '}
-                  unbundled post{content.unbundled_posts === 1 ? '' : 's'}
-                </li>
-              )}
-            </ul>
-          </div>
-        </section>
-      )}
+      <ObjectivesSection objectives={objectives} />
 
-      <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-        <MoneyLaneCard money={money} />
-        <ContentLaneCard content={content} />
-        <CodeLaneCard code={code} />
-        <BrandLaneCard brand={brand} />
-        <PerformanceLaneCard perf={perf} />
-        <PeopleLaneCard rows={capacity} />
-      </section>
+      <PlatesSection plates={plates} />
 
-      <Suite />
+      <ShipmentsSection shipments={shipments} />
     </div>
   );
 }
 
-// ─── Hero ────────────────────────────────────────────────────────────────
+// ─── Approvals strip (Christian's queue) ───────────────────────────────────
 
-function Hero({
-  money,
-  content,
-  code,
-  brand,
-  perf,
+function ApprovalsStrip({
+  count,
+  oldest,
 }: {
-  money: Awaited<ReturnType<typeof getMoneyLane>>;
-  content: Awaited<ReturnType<typeof getContentLane>>;
-  code: Awaited<ReturnType<typeof getCodeLane>>;
-  brand: Awaited<ReturnType<typeof getBrandLane>>;
-  perf: Awaited<ReturnType<typeof getPerformanceLane>>;
+  count: number;
+  oldest: { id: string; artifact_kind: string; artifact_title: string | null; client_name?: string | null; waiting_hours: number } | null;
 }) {
   return (
-    <section className="grain relative overflow-hidden rounded-lg border border-green-deep/10 bg-green-deep px-8 py-10 text-cream shadow-card">
-      <span aria-hidden className="watermark cream pointer-events-none absolute -bottom-6 right-4 text-[160px] leading-none">
-        HUDDLE
-      </span>
-      <span className="eyebrow cream">The agency, in one screen</span>
-      <h1 className="mt-3 max-w-3xl font-display text-4xl font-bold leading-display tracking-display sm:text-5xl">
-        Pulse <span className="italic-amber">huddle</span>.
-        <span className="mt-1 block font-normal text-cream/75 text-2xl sm:text-3xl">
-          Money, content, code, brand, and performance — read together.
+    <Link
+      href="/approvals"
+      className="group flex flex-col gap-3 rounded-lg border border-stone-200 bg-white p-6 shadow-[0_1px_2px_rgb(0_0_0_/0.04)] transition-colors duration-150 hover:bg-stone-50"
+    >
+      <div className="flex items-center justify-between">
+        <span className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.08em] text-stone-500">
+          <ShieldCheck size={12} />
+          Awaiting your sign-off
         </span>
-      </h1>
-
-      <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <Stat label="Pipeline value" value={formatMoneyFull(money.in_pipeline_cents)} accent="amber" />
-        <Stat label="Posts due 7d" value={String(content.posts_due_7d)} />
-        <Stat label="Open tasks" value={String(code.open_tasks)} />
-        <Stat label="LLM runs 7d" value={String(brand.runs_7d)} hint={formatCents(brand.cost_cents_7d)} />
-        <Stat label="Recs to review" value={String(perf.recommendations_open)} accent="amber" />
+        <ArrowUpRight
+          size={14}
+          className="text-stone-300 transition-colors group-hover:text-stone-500"
+        />
       </div>
+      <div className="flex items-baseline gap-3">
+        <span className="font-display text-4xl font-semibold tabular-nums text-stone-900">
+          {count}
+        </span>
+        <span className="text-[13px] text-stone-600">
+          {count === 1 ? 'approval' : 'approvals'} pending
+        </span>
+      </div>
+      {oldest ? (
+        <div className="border-t border-stone-100 pt-3 text-[12px] text-stone-600">
+          <span className="text-stone-500">Oldest · </span>
+          <span className="font-medium text-stone-800">
+            {oldest.artifact_title ?? oldest.artifact_kind}
+          </span>
+          {oldest.client_name && (
+            <>
+              <span className="text-stone-400"> · </span>
+              {oldest.client_name}
+            </>
+          )}
+          <span className="ml-1 tabular-nums text-stone-500">
+            ({oldest.waiting_hours < 24 ? `${oldest.waiting_hours}h` : `${Math.floor(oldest.waiting_hours / 24)}d`})
+          </span>
+        </div>
+      ) : (
+        <div className="border-t border-stone-100 pt-3 text-[12px] text-stone-500">
+          Inbox zero. The team can ship.
+        </div>
+      )}
+    </Link>
+  );
+}
+
+// ─── Objectives strip ──────────────────────────────────────────────────────
+
+function ObjectivesSection({
+  objectives,
+}: {
+  objectives: Awaited<ReturnType<typeof getAgencyObjectives>>;
+}) {
+  return (
+    <section className="flex flex-col gap-4">
+      <div className="flex items-baseline justify-between">
+        <h2 className="font-display text-2xl font-semibold tracking-tight text-stone-900">
+          Agency objectives
+        </h2>
+        <span className="text-[11px] uppercase tracking-[0.08em] text-stone-500">
+          Shipping in the next 30 days
+        </span>
+      </div>
+      {objectives.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-stone-200 bg-white px-6 py-10 text-center text-[14px] text-stone-600">
+          No projects with ship dates in the next 30 days. Set
+          <Link href="/projects" className="ml-1 text-amber-deep hover:underline">
+            target ship dates
+          </Link>{' '}
+          to see what&rsquo;s on the roadmap.
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          {objectives.map(o => (
+            <Link
+              key={o.project.id}
+              href={`/projects/${o.project.slug}`}
+              className="flex flex-col gap-3 rounded-lg border border-stone-200 bg-white p-5 shadow-[0_1px_2px_rgb(0_0_0_/0.04)] transition-colors duration-150 hover:bg-stone-50"
+            >
+              <WorkKindChip kind={o.project.kind} />
+              <div className="font-display text-[17px] font-semibold tracking-tight text-stone-900">
+                {o.project.name}
+              </div>
+              {o.project.client_name && o.project.kind !== 'internal_build' && (
+                <div className="text-[12px] text-stone-500">{o.project.client_name}</div>
+              )}
+              <div className="mt-auto flex items-center gap-2 border-t border-stone-100 pt-3 text-[12px] tabular-nums text-stone-600">
+                <CalendarClock size={12} className="text-stone-400" />
+                {o.project.target_ship_date}
+                {o.days_until_ship !== null && (
+                  <span
+                    className={
+                      o.days_until_ship < 7
+                        ? 'ml-auto text-amber-deep'
+                        : 'ml-auto text-stone-500'
+                    }
+                  >
+                    {o.days_until_ship < 0 ? `${-o.days_until_ship}d late` : `in ${o.days_until_ship}d`}
+                  </span>
+                )}
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
 
-function Stat({
-  label,
-  value,
-  hint,
-  accent,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  accent?: 'amber';
-}) {
+// ─── Today's plates per person ─────────────────────────────────────────────
+
+function PlatesSection({ plates }: { plates: PersonPlate[] }) {
   return (
-    <div className="rounded-md border border-cream/10 bg-cream/5 px-4 py-3">
-      <div className="text-[10px] uppercase tracking-eyebrow text-cream/55">{label}</div>
-      <div
-        className={`font-display text-2xl font-bold tabular-nums ${
-          accent === 'amber' ? 'italic-amber' : 'text-cream-lt'
-        }`}
-      >
-        {value}
+    <section className="flex flex-col gap-4">
+      <div className="flex items-baseline justify-between">
+        <h2 className="font-display text-2xl font-semibold tracking-tight text-stone-900">
+          Today&rsquo;s plates
+        </h2>
+        <Link
+          href="/people"
+          className="text-[12px] uppercase tracking-[0.08em] text-stone-500 hover:text-amber-deep"
+        >
+          All people
+        </Link>
       </div>
-      {hint && <div className="font-mono text-[10px] text-cream/55 tabular-nums">{hint}</div>}
-    </div>
+      {plates.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-stone-200 bg-white px-6 py-10 text-center text-[14px] text-stone-600">
+          Add people in <code className="font-mono text-[12px]">public.people</code> to see plates here.
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {plates.map(p => (
+            <PlateCard key={p.person.id} plate={p} />
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
-// ─── Lanes ───────────────────────────────────────────────────────────────
-
-function LaneCard({
-  eyebrow,
-  title,
-  icon,
-  href,
-  children,
-  hrefLabel = 'Open',
-}: {
-  eyebrow: string;
-  title: string;
-  icon: React.ReactNode;
-  href?: string;
-  hrefLabel?: string;
-  children: React.ReactNode;
-}) {
+function PlateCard({ plate }: { plate: PersonPlate }) {
   return (
-    <article className="flex flex-col gap-4 rounded-md border border-cream-dk/60 bg-white p-5 shadow-sm">
-      <header className="flex items-start justify-between gap-3">
-        <div>
-          <div className="mb-1 flex items-center gap-1.5 text-amber-deep">
-            {icon}
-            <span className="text-[10px] font-semibold uppercase tracking-eyebrow">
-              {eyebrow}
-            </span>
-          </div>
-          <h2 className="font-display text-2xl font-bold tracking-display text-green-deep">
-            {title}
-          </h2>
-        </div>
-        {href && (
-          <a
-            href={href}
-            target="_blank"
-            rel="noreferrer"
-            className="shrink-0 text-[11px] uppercase tracking-eyebrow text-charcoal/55 hover:text-amber-deep"
-          >
-            {hrefLabel} <ArrowRight size={11} className="inline" />
-          </a>
-        )}
+    <article className="flex flex-col gap-4 rounded-lg border border-stone-200 bg-white p-6 shadow-[0_1px_2px_rgb(0_0_0_/0.04)]">
+      <header className="flex items-center justify-between gap-3">
+        <Link
+          href={`/people/${plate.person.id}`}
+          className="flex items-center gap-2.5 text-stone-900 hover:text-amber-deep"
+        >
+          <span
+            className="inline-block h-2.5 w-2.5 rounded-full"
+            style={{ backgroundColor: plate.person.color }}
+            aria-hidden
+          />
+          <span className="font-display text-lg font-semibold tracking-tight">
+            {plate.person.name}
+          </span>
+          <span className="text-[11px] uppercase tracking-[0.08em] text-stone-500">
+            {plate.person.role.replace(/_/g, ' ')}
+          </span>
+        </Link>
+        <ArrowUpRight size={14} className="text-stone-300" />
       </header>
-      {children}
+
+      <div className="grid grid-cols-3 gap-2 border-t border-stone-100 pt-4 text-center">
+        <Mini label="Open" value={plate.open_task_count} />
+        <Mini label="Active" value={plate.in_progress_count} />
+        <Mini label="Shoots 14d" value={plate.shoots_next_14d} />
+      </div>
+
+      {plate.shoots_today.length > 0 && (
+        <div className="flex flex-col gap-1.5 border-t border-stone-100 pt-3 text-[12px] text-stone-700">
+          {plate.shoots_today.slice(0, 2).map(s => (
+            <div key={s.id} className="flex items-center gap-2">
+              <Camera size={12} className="text-stone-400" />
+              <span className="truncate">
+                {s.client_name && <span className="font-medium">{s.client_name}</span>}
+                {s.location && <span className="text-stone-500"> · {s.location}</span>}
+              </span>
+              {s.scheduled_time && (
+                <span className="ml-auto font-mono text-[11px] tabular-nums text-stone-500">
+                  {s.scheduled_time}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {plate.top_tasks.length > 0 ? (
+        <div className="flex flex-col gap-2 border-t border-stone-100 pt-3">
+          {plate.top_tasks.map(t => (
+            <TaskRow key={t.id} task={t} showProject showClient />
+          ))}
+        </div>
+      ) : (
+        <div className="border-t border-stone-100 pt-3 text-[12px] text-stone-500">
+          No open tasks. Quiet plate.
+        </div>
+      )}
     </article>
   );
 }
 
-function MoneyLaneCard({ money }: { money: Awaited<ReturnType<typeof getMoneyLane>> }) {
+function Mini({ label, value }: { label: string; value: number }) {
   return (
-    <LaneCard
-      eyebrow="Money"
-      title="Pipeline"
-      icon={<Briefcase size={14} />}
-      href={process.env.NEXT_PUBLIC_CRM_URL}
-      hrefLabel="Open CRM"
-    >
-      <div className="grid grid-cols-3 gap-2 text-center text-xs">
-        <Mini label="New 7d" value={String(money.new_this_week)} />
-        <Mini label="In pipeline" value={formatMoneyFull(money.in_pipeline_cents)} />
-        <Mini label="Won MTD" value={formatMoneyFull(money.won_mtd_cents)} />
-      </div>
-      {money.hot_leads.length > 0 ? (
-        <ul className="flex flex-col gap-2 text-sm">
-          {money.hot_leads.map(l => (
-            <li
-              key={l.id}
-              className="flex items-center justify-between gap-2 rounded-md bg-cream/35 px-3 py-2"
-            >
-              <span className="min-w-0 truncate">
-                <span className="font-semibold text-green-deep">{l.name}</span>
-                {l.company && (
-                  <span className="text-charcoal/55"> · {l.company}</span>
-                )}
-              </span>
-              <span className="shrink-0 font-mono text-xs tabular-nums text-amber-deep">
-                {formatMoneyFull(l.value_cents ?? 0)}
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <Empty>No hot deals — go fill the funnel.</Empty>
-      )}
-    </LaneCard>
-  );
-}
-
-function ContentLaneCard({ content }: { content: Awaited<ReturnType<typeof getContentLane>> }) {
-  return (
-    <LaneCard
-      eyebrow="Content"
-      title="On the wire"
-      icon={<CalendarDays size={14} />}
-      href={process.env.NEXT_PUBLIC_SOCIAL_URL}
-      hrefLabel="Open Social"
-    >
-      <div className="grid grid-cols-3 gap-2 text-center text-xs">
-        <Mini label="Unbundled" value={String(content.unbundled_posts)} />
-        <Mini label="Shoots 7d" value={String(content.shoots_next_7d)} />
-        <Mini label="Posts 7d" value={String(content.posts_due_7d)} />
-      </div>
-      {content.notifications.length > 0 ? (
-        <ul className="flex flex-col gap-1.5 text-sm">
-          {content.notifications.slice(0, 5).map(n => (
-            <li key={n.id} className="flex items-start gap-2 rounded-md bg-cream/35 px-3 py-2">
-              <span
-                className={`mt-1 inline-block h-2 w-2 shrink-0 rounded-full ${
-                  n.severity === 'bad'
-                    ? 'bg-bad'
-                    : n.severity === 'warn'
-                    ? 'bg-amber-mid'
-                    : 'bg-green-mid'
-                }`}
-                aria-hidden
-              />
-              <span className="min-w-0 flex-1 truncate text-charcoal/85">{n.title}</span>
-              <span className="shrink-0 text-[10px] text-charcoal/45">
-                {timeAgo(n.created_at)}
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <Empty>No active notifications. Inbox is clean.</Empty>
-      )}
-    </LaneCard>
-  );
-}
-
-function CodeLaneCard({ code }: { code: Awaited<ReturnType<typeof getCodeLane>> }) {
-  return (
-    <LaneCard
-      eyebrow="Code"
-      title="Builds &amp; tasks"
-      icon={<GitBranch size={14} />}
-      href={process.env.NEXT_PUBLIC_DEV_URL}
-      hrefLabel="Open Dev"
-    >
-      <div className="grid grid-cols-3 gap-2 text-center text-xs">
-        <Mini label="Dirty repos" value={String(code.dirty_repos)} />
-        <Mini label="Failed 24h" value={String(code.failing_deploys_24h)} />
-        <Mini label="Open tasks" value={String(code.open_tasks)} />
-      </div>
-      {code.urgent_tasks.length > 0 ? (
-        <ul className="flex flex-col gap-1.5 text-sm">
-          {code.urgent_tasks.map(t => (
-            <li
-              key={t.id}
-              className="flex items-start gap-2 rounded-md bg-cream/35 px-3 py-2"
-            >
-              <span className="mt-0.5 inline-block rounded-full bg-bad/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-eyebrow text-bad">
-                {t.priority}
-              </span>
-              <span className="min-w-0 flex-1 text-charcoal/85">
-                {t.title}
-                {t.project_name && (
-                  <span className="text-charcoal/45"> · {t.project_name}</span>
-                )}
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <Empty>No high-priority tasks. Quiet on the wire.</Empty>
-      )}
-    </LaneCard>
-  );
-}
-
-function BrandLaneCard({ brand }: { brand: Awaited<ReturnType<typeof getBrandLane>> }) {
-  return (
-    <LaneCard
-      eyebrow="Brand"
-      title="LLM gateway"
-      icon={<Mic size={14} />}
-      href={process.env.NEXT_PUBLIC_VOICE_URL}
-      hrefLabel="Open Voice"
-    >
-      <div className="grid grid-cols-3 gap-2 text-center text-xs">
-        <Mini label="Runs 7d" value={String(brand.runs_7d)} />
-        <Mini label="Cost 7d" value={formatCents(brand.cost_cents_7d)} />
-        <Mini label="Stale briefs" value={String(brand.stale_brief_clients)} />
-      </div>
-      {brand.recent_runs.length > 0 ? (
-        <ul className="flex flex-col gap-1.5 text-sm">
-          {brand.recent_runs.map(r => (
-            <li key={r.id} className="flex items-center justify-between gap-2 rounded-md bg-cream/35 px-3 py-2">
-              <span className="min-w-0 flex-1 truncate text-charcoal/85">
-                <span className="font-mono text-[10px] uppercase tracking-eyebrow text-charcoal/55">
-                  {r.calling_app}
-                </span>{' '}
-                · {r.template_name ?? r.template_slug ?? 'custom'}
-              </span>
-              <span className="shrink-0 font-mono text-[10px] text-charcoal/55 tabular-nums">
-                {r.status === 'stub' ? 'stub' : formatCents(r.cost_cents ?? 0)}
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <Empty>No LLM runs yet — gateway is idle.</Empty>
-      )}
-    </LaneCard>
-  );
-}
-
-function PerformanceLaneCard({ perf }: { perf: Awaited<ReturnType<typeof getPerformanceLane>> }) {
-  return (
-    <LaneCard
-      eyebrow="Performance"
-      title="What changed"
-      icon={<TrendingDown size={14} />}
-      href={process.env.NEXT_PUBLIC_ANALYTICS_URL}
-      hrefLabel="Open Analytics"
-    >
-      <div className="grid grid-cols-3 gap-2 text-center text-xs">
-        <Mini label="Insights 7d" value={String(perf.insights_7d)} />
-        <Mini label="Posts 7d" value={String(perf.posts_ingested_7d)} />
-        <Mini label="Recs open" value={String(perf.recommendations_open)} />
-      </div>
-      {perf.recent_insight ? (
-        <div className="rounded-md bg-cream/35 px-3 py-2 text-sm">
-          <div className="text-[10px] uppercase tracking-eyebrow text-amber-deep">
-            Latest insight · {perf.recent_insight.client_name ?? 'agency'}
-          </div>
-          <p className="mt-1 line-clamp-3 text-charcoal/85">
-            {perf.recent_insight.body_md.replace(/[#*`]/g, '').trim().slice(0, 220)}…
-          </p>
-          <div className="mt-1 text-[10px] text-charcoal/45">
-            {timeAgo(perf.recent_insight.generated_at)}
-          </div>
-        </div>
-      ) : (
-        <Empty>No AI insights yet. Connect analytics to start.</Empty>
-      )}
-    </LaneCard>
-  );
-}
-
-function PeopleLaneCard({ rows }: { rows: Awaited<ReturnType<typeof getCapacityLane>> }) {
-  const max = Math.max(1, ...rows.map(r => r.total));
-  return (
-    <LaneCard eyebrow="People" title="Capacity" icon={<Users size={14} />}>
-      {rows.length > 0 ? (
-        <ul className="flex flex-col gap-2 text-sm">
-          {rows.map(r => {
-            const pct = (r.total / max) * 100;
-            return (
-              <li key={r.person_id} className="flex flex-col gap-1">
-                <div className="flex items-center justify-between text-charcoal/85">
-                  <span className="flex items-center gap-2">
-                    <span
-                      className="inline-block h-2.5 w-2.5 rounded-full"
-                      style={{ backgroundColor: r.color }}
-                      aria-hidden
-                    />
-                    <span className="font-semibold">{r.name}</span>
-                  </span>
-                  <span className="font-mono text-xs tabular-nums">
-                    {r.total} <span className="text-charcoal/45">open</span>
-                  </span>
-                </div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-cream/50">
-                  <div
-                    className="h-full bg-green-mid"
-                    style={{ width: `${Math.max(2, pct)}%` }}
-                  />
-                </div>
-                <div className="flex items-center gap-3 text-[10px] uppercase tracking-eyebrow text-charcoal/45">
-                  <span>Leads {r.open_leads}</span>
-                  <span>Posts {r.open_posts}</span>
-                  <span>Shoots {r.open_shoots}</span>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      ) : (
-        <Empty>No people on the team yet, or nothing assigned.</Empty>
-      )}
-    </LaneCard>
-  );
-}
-
-function Mini({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md bg-cream/35 px-2 py-1.5">
-      <div className="text-[9px] uppercase tracking-eyebrow text-charcoal/55">
-        {label}
-      </div>
-      <div className="font-mono text-base font-semibold tabular-nums text-green-deep">
+    <div>
+      <div className="font-display text-2xl font-semibold tabular-nums text-stone-900">
         {value}
       </div>
+      <div className="mt-0.5 text-[10px] uppercase tracking-[0.08em] text-stone-500">{label}</div>
     </div>
   );
 }
 
-function Empty({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="grid place-items-center rounded-md border border-dashed border-cream-dk/60 bg-cream/20 px-3 py-4 text-center text-xs text-charcoal/55">
-      <Sparkles size={14} className="mb-1 text-amber-deep" />
-      {children}
-    </div>
-  );
-}
+// ─── Shipments today/yesterday ─────────────────────────────────────────────
 
-// ─── Suite footer ─────────────────────────────────────────────────────────
-
-function Suite() {
-  const apps = [
-    { key: 'social', envVar: 'NEXT_PUBLIC_SOCIAL_URL', label: 'Pulse Social', tagline: 'Content production', icon: <CalendarDays size={14} /> },
-    { key: 'crm', envVar: 'NEXT_PUBLIC_CRM_URL', label: 'Pulse CRM', tagline: 'Pipeline & follow-ups', icon: <Briefcase size={14} /> },
-    { key: 'voice', envVar: 'NEXT_PUBLIC_VOICE_URL', label: 'Pulse Voice', tagline: 'Brand voice + LLM gateway', icon: <Mic size={14} /> },
-    { key: 'analytics', envVar: 'NEXT_PUBLIC_ANALYTICS_URL', label: 'Pulse Analytics', tagline: 'Performance + AI advisor', icon: <TrendingDown size={14} /> },
-    { key: 'dev', envVar: 'NEXT_PUBLIC_DEV_URL', label: 'Pulse Dev', tagline: 'Software ops & monitor', icon: <Cpu size={14} /> },
-  ];
+function ShipmentsSection({
+  shipments,
+}: {
+  shipments: Awaited<ReturnType<typeof getRecentShipments>>;
+}) {
+  if (shipments.length === 0) return null;
+  const total = shipments.reduce((sum, s) => sum + s.count, 0);
   return (
-    <section className="flex flex-col gap-4">
-      <span className="eyebrow">Open in another tool</span>
-      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        {apps.map(a => {
-          const url = (process.env[a.envVar] ?? '').replace(/\/$/, '');
-          return (
-            <li key={a.key}>
-              {url ? (
-                <Link
-                  href={url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="group flex flex-col gap-1 rounded-md border border-cream-dk/60 bg-white p-3 shadow-sm hover:border-amber-mid/60 hover:shadow-card"
-                >
-                  <span className="flex items-center gap-1.5 text-amber-deep">
-                    {a.icon}
-                    <span className="font-display text-sm font-bold text-green-deep">
-                      {a.label}
-                    </span>
-                  </span>
-                  <span className="text-[11px] text-charcoal/55">{a.tagline}</span>
-                </Link>
-              ) : (
-                <div className="flex flex-col gap-1 rounded-md border border-dashed border-cream-dk/60 bg-cream/30 p-3 text-charcoal/45">
-                  <span className="flex items-center gap-1.5">
-                    {a.icon}
-                    <span className="font-display text-sm font-bold">{a.label}</span>
-                  </span>
-                  <span className="text-[11px]">URL not configured.</span>
-                </div>
-              )}
-            </li>
-          );
-        })}
+    <section className="flex flex-col gap-3 rounded-lg border border-stone-200 bg-white p-6 shadow-[0_1px_2px_rgb(0_0_0_/0.04)]">
+      <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.08em] text-stone-500">
+        <CheckCircle2 size={12} />
+        Shipped in the last 36 hours
+      </div>
+      <div className="flex items-baseline gap-3">
+        <span className="font-display text-3xl font-semibold tabular-nums text-stone-900">
+          {total}
+        </span>
+        <span className="text-[13px] text-stone-600">artifacts moved</span>
+      </div>
+      <ul className="flex flex-wrap gap-x-6 gap-y-1 text-[13px] text-stone-700">
+        {shipments.map(s => (
+          <li key={s.source} className="flex items-center gap-1.5">
+            <span className="tabular-nums">{s.detail}</span>
+          </li>
+        ))}
       </ul>
-      <p className="text-[11px] text-charcoal/45">
-        <ShieldCheck size={11} className="mr-1 inline" />
-        Read-only. The huddle does not write anywhere — it just shows what
-        the other tools already know.
-      </p>
     </section>
   );
 }

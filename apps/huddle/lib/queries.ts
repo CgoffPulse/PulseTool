@@ -1,6 +1,31 @@
 import 'server-only';
 import { q, qOne } from './db';
 
+// Re-export the Pulse Command queries so callers have a single import surface.
+export {
+  getTodayQueue,
+  getApprovalsQueue,
+  getAgencyObjectives,
+  getPersonPlate,
+  getPeopleRoster,
+  getRecentShipments,
+  getCalendarMonth,
+  getClient,
+  getClientSnapshot,
+  getProject,
+  getProjectDevLinks,
+  getApproval,
+  getDepartment,
+  getPerson,
+  listApprovals,
+  listClients,
+  listDepartments,
+  listPeople,
+  listProjects,
+  listTasks,
+  getTask,
+} from './command-queries';
+
 /**
  * The Huddle reads from every schema in the suite. Every cross-schema query
  * is wrapped so that one tool being down (or its schema not yet migrated)
