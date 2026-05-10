@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { addMonths, format, parseISO, startOfMonth } from 'date-fns';
 import { ClientTierChip } from '@/components/state-chip';
 import { ProjectCard } from '@/components/project-card';
 import {
@@ -7,6 +8,11 @@ import {
   getClientSnapshot,
   listProjects,
 } from '@/lib/command/queries';
+import {
+  getClientBySlug as getSocialClient,
+  listMonthsForClient,
+} from '@/lib/social/queries';
+import { fmtMonth, monthSlug } from '@/lib/social/utils';
 import { timeAgo } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -20,10 +26,15 @@ export default async function ClientDetailPage({
   const client = await getClient(slug);
   if (!client) notFound();
 
-  const [projects, snap] = await Promise.all([
+  const [projects, snap, socialClient] = await Promise.all([
     listProjects({ client_id: client.id }),
     getClientSnapshot(client.id),
+    safeSocialClient(slug),
   ]);
+  const socialMonths = socialClient
+    ? await safeListMonths(socialClient.id)
+    : [];
+  const socialMonthsToShow = buildSocialMonthsList(socialMonths);
 
   const briefAgeText = snap.brand_brief?.updated_at
     ? `v${snap.brand_brief.version ?? '?'} · updated ${timeAgo(snap.brand_brief.updated_at)}`
@@ -103,6 +114,41 @@ export default async function ClientDetailPage({
         )}
       </section>
 
+      {socialMonthsToShow.length > 0 && (
+        <section className="flex flex-col gap-4">
+          <h2 className="font-display text-xl font-semibold tracking-tight text-stone-900">
+            Content months
+          </h2>
+          <ul className="divide-y divide-stone-200 overflow-hidden rounded-lg border border-stone-200 bg-white">
+            {socialMonthsToShow.map(m => (
+              <li key={m.iso}>
+                <Link
+                  href={`/clients/${slug}/months/${monthSlug(m.iso)}/planning`}
+                  className="flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-stone-50"
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="font-display text-lg font-semibold tracking-tight tabular-nums text-stone-900">
+                      {format(parseISO(m.iso), 'LL')}
+                    </span>
+                    <span className="text-[14px] text-stone-700">
+                      {fmtMonth(m.iso)}
+                      {!m.hasData && (
+                        <span className="ml-2 text-[11px] italic text-stone-400">
+                          empty
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-stone-500">
+                    Open →
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {snap.recent_insights.length > 0 && (
         <section className="flex flex-col gap-4">
           <h2 className="font-display text-xl font-semibold tracking-tight text-stone-900">
@@ -127,6 +173,41 @@ export default async function ClientDetailPage({
       )}
     </div>
   );
+}
+
+/**
+ * Best-effort lookup against the social `clients` table (Supabase). Pulse
+ * Command's `command.clients` and the social `clients` are different rows;
+ * we match by slug so the months grid only renders when the social schema
+ * actually knows about this client.
+ */
+async function safeSocialClient(slug: string) {
+  try {
+    return await getSocialClient(slug);
+  } catch {
+    return null;
+  }
+}
+
+async function safeListMonths(clientId: string) {
+  try {
+    return await listMonthsForClient(clientId);
+  } catch {
+    return [];
+  }
+}
+
+function buildSocialMonthsList(
+  existing: Array<{ id: string; client_id: string; month: string }>
+): Array<{ iso: string; hasData: boolean }> {
+  const today = startOfMonth(new Date());
+  const upcomingIsos = [today, addMonths(today, 1), addMonths(today, 2)].map(d =>
+    format(d, 'yyyy-MM-01')
+  );
+  const existingIsos = new Set(existing.map(m => m.month));
+  const all = Array.from(new Set([...upcomingIsos, ...existing.map(m => m.month)]))
+    .sort((a, b) => (a < b ? 1 : -1));
+  return all.map(iso => ({ iso, hasData: existingIsos.has(iso) }));
 }
 
 function Stat({
