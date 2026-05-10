@@ -1,12 +1,16 @@
 import 'server-only';
-import { qOne } from './db';
+import { runOnboardingCascade } from './onboarding-cascade';
 
 /**
- * Promote-to-client bridge. Writes a row into the social tool's `clients`
- * table and returns the resulting id + slug. No FK is enforced across
- * schemas; we stamp the resulting client_id on `crm.leads.client_id` after.
+ * Promote-to-client bridge. Delegates to the full onboarding cascade
+ * (`runOnboardingCascade`) — the cascade upserts the client row, seeds the
+ * first month, stubs the brand brief, spawns an onboarding project + tasks,
+ * and writes a welcome notification. Idempotent on slug.
  *
- * Idempotent on slug: if a client with that slug already exists, we return it.
+ * The function signature is preserved for back-compat with existing callsites
+ * in `apps/crm/lib/actions.ts`. New callsites can pass `extras` to override
+ * tier/service_lines defaults; without it, the cascade infers tier from
+ * `valueCents` (here always null) and falls back to defaults.
  */
 export interface PromotedClient {
   id: string;
@@ -14,47 +18,31 @@ export interface PromotedClient {
   name: string;
 }
 
-function slugifyName(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 64);
-}
-
 export async function promoteLeadToClient(
   leadName: string,
-  leadCompany: string | null
+  leadCompany: string | null,
+  extras?: {
+    valueCents?: number | null;
+    serviceLines?: string[];
+    notes?: string | null;
+  }
 ): Promise<PromotedClient | null> {
-  const displayName = leadCompany?.trim() || leadName.trim();
-  if (!displayName) return null;
-  const slug = slugifyName(displayName);
-  if (!slug) return null;
-  try {
-    // Try to read existing first.
-    const existing = await qOne<{ id: string; slug: string; name: string }>(
-      `select id, slug, name from clients where slug = $1 limit 1`,
-      [slug]
-    );
-    if (existing) return existing;
-    // Otherwise insert a new client. The social tool's clients table
-    // accepts (slug, name) at minimum — color and other fields default.
-    const inserted = await qOne<{ id: string; slug: string; name: string }>(
-      `insert into clients (slug, name)
-       values ($1, $2)
-       on conflict (slug) do update set name = excluded.name
-       returning id, slug, name`,
-      [slug, displayName]
-    );
-    return inserted ?? null;
-  } catch (err) {
-    console.warn(
-      '[social-bridge] promote failed (social schema unavailable?):',
-      (err as Error).message
-    );
+  const result = await runOnboardingCascade({
+    leadName,
+    leadCompany,
+    valueCents: extras?.valueCents ?? null,
+    serviceLines: extras?.serviceLines,
+    notes: extras?.notes ?? null,
+  });
+  if (!result.ok) {
+    console.warn('[social-bridge] cascade failed:', result.reason);
     return null;
   }
+  return {
+    id: result.client.id,
+    slug: result.client.slug,
+    name: result.client.name,
+  };
 }
 
 /**
