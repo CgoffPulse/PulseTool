@@ -690,3 +690,74 @@ function parseCadenceTarget(cadence: string | null | undefined): number | null {
   if (unit.startsWith('d')) return n * 30;
   return n;
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Cross-app signals adapter
+//
+// The agency-wide command center (apps/voice/lib/signals/*) consumes detector
+// output as `Signal` rows in `command.signals`. This adapter is the ONLY
+// coupling point — voice imports this function, runs the existing detectors
+// through `runDetectors`, and converts each NotificationDraft into a stable
+// SignalDraft with a fully-qualified `kind` (e.g. `social.stuck_post`) and an
+// optional artifact pointer for the auto-close engine. Detector logic is
+// untouched; this is purely a serialization layer.
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface SignalDraft {
+  source: string;
+  kind: string;
+  payload: Record<string, unknown>;
+  dedup_key: string;
+  artifact_kind?: string;
+  artifact_id?: string;
+}
+
+/**
+ * Convert a social-tool NotificationDraft into a SignalDraft suitable for
+ * insertion into `command.signals`. Carries the artifact pointer (post or
+ * shoot) when the draft has one, so the downstream task → artifact link can
+ * be wired automatically.
+ *
+ * The draft's `dedup_key` is reused as-is — it's already stable per detector
+ * pattern (e.g., `stuck_post:<post_id>`, `unassigned:<shoot_id>`). The
+ * `kind` is prefixed with `social.` to namespace it across sources.
+ */
+export function notificationDraftToSignal(draft: NotificationDraft): SignalDraft {
+  // Artifact pointer: prefer the most specific entity the auto-close rule
+  // can act on. Posts win over shoots win over months win over clients.
+  let artifact_kind: string | undefined;
+  let artifact_id: string | undefined;
+  if (draft.related_post_id) {
+    artifact_kind = 'post';
+    artifact_id = draft.related_post_id;
+  } else if (draft.related_shoot_id) {
+    artifact_kind = 'shoot';
+    artifact_id = draft.related_shoot_id;
+  } else if (draft.related_month_id) {
+    artifact_kind = 'month';
+    artifact_id = draft.related_month_id;
+  } else if (draft.related_client_id) {
+    artifact_kind = 'client';
+    artifact_id = draft.related_client_id;
+  }
+  const payload: Record<string, unknown> = {
+    severity: draft.severity,
+    title: draft.title,
+    detail: draft.detail ?? null,
+    link_url: draft.link_url ?? null,
+    audience_role: draft.audience_role ?? null,
+    audience_person_id: draft.audience_person_id ?? null,
+    related_post_id: draft.related_post_id ?? null,
+    related_shoot_id: draft.related_shoot_id ?? null,
+    related_client_id: draft.related_client_id ?? null,
+    related_month_id: draft.related_month_id ?? null,
+  };
+  return {
+    source: 'social',
+    kind: `social.${draft.kind}`,
+    payload,
+    dedup_key: `social.${draft.kind}:${draft.dedup_key}`,
+    ...(artifact_kind ? { artifact_kind } : {}),
+    ...(artifact_id ? { artifact_id } : {}),
+  };
+}
