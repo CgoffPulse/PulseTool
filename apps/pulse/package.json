@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run --passWithNoTests",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "dev:gh:poll": "tsx scripts/dev/github-poll.ts",
+    "dev:fs:scan": "tsx scripts/dev/fs-scan.ts",
+    "dev:discover": "tsx scripts/dev/discover.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",
