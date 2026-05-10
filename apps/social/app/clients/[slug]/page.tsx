@@ -10,6 +10,7 @@ import {
 } from '@/lib/queries';
 import { monthKpis, validationGates } from '@/lib/computations';
 import { fmtMonth, monthSlug } from '@/lib/utils';
+import { NotificationBanner } from '@/components/notification-banner';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,6 +53,8 @@ export default async function ClientHomePage({
   return (
     <div className="space-y-12">
       <Header client={client} frame={frame} />
+
+      <NotificationBanner clientId={client.id} />
 
       <section>
         <header className="flex items-end justify-between border-b border-cream-dk/60 pb-4">

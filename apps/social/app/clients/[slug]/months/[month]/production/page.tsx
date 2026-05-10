@@ -9,6 +9,7 @@ import {
   User,
 } from 'lucide-react';
 import { CoveragePanel } from '@/components/coverage-panel';
+import { NotificationBanner } from '@/components/notification-banner';
 import {
   buildMonthContext,
   getClientBySlug,
@@ -58,25 +59,28 @@ export default async function ProductionPage({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-8 xl:grid-cols-[1fr,380px]">
-      <ShootSchedule
-        shoots={ctx.shoots}
-        posts={ctx.posts}
-        minLead={minLead}
-        slug={slug}
-        month={month}
-        tplById={tplById}
-        piggybacksByHost={piggybacksByHost}
-        shootById={shootById}
-        clientById={clientById}
-        personById={personById}
-      />
+    <div className="space-y-6">
+      <NotificationBanner clientId={client.id} monthId={ctx.month.id} />
+      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[1fr,380px]">
+        <ShootSchedule
+          shoots={ctx.shoots}
+          posts={ctx.posts}
+          minLead={minLead}
+          slug={slug}
+          month={month}
+          tplById={tplById}
+          piggybacksByHost={piggybacksByHost}
+          shootById={shootById}
+          clientById={clientById}
+          personById={personById}
+        />
 
-      <aside>
-        <div className="sticky top-24">
-          <CoveragePanel ctx={ctx} variant="full" />
-        </div>
-      </aside>
+        <aside>
+          <div className="sticky top-24">
+            <CoveragePanel ctx={ctx} variant="full" />
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }
