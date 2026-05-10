@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = path.resolve(__dirname, '..', 'migrations');
 
-const KNOWN_SCHEMAS = ['public', 'dev', 'crm', 'voice', 'analytics'];
+const KNOWN_SCHEMAS = ['public', 'dev', 'crm', 'voice', 'analytics', 'command'];
 
 interface Violation {
   file: string;
