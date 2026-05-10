@@ -120,7 +120,7 @@ function ApprovalRow({ approval }: { approval: ApprovalQueueItem }) {
             {approval.client_name && <> · {approval.client_name}</>}
           </div>
           <h3 className="mt-1 font-display text-lg font-semibold tracking-tight text-stone-900">
-            {approval.artifact_title ?? approval.artifact_slug ?? 'Untitled artifact'}
+            {approval.artifact_slug ?? approval.artifact_kind ?? 'Untitled artifact'}
           </h3>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-stone-500">
             <span>Waiting {waiting}</span>
@@ -160,7 +160,7 @@ function DecidedRow({ approval }: { approval: Approval }) {
             {approval.client_name && <> · {approval.client_name}</>}
           </div>
           <div className="mt-0.5 text-[13px] text-stone-800">
-            {approval.artifact_title ?? approval.artifact_slug ?? 'Untitled'}
+            {approval.artifact_slug ?? approval.artifact_kind ?? 'Untitled'}
           </div>
         </div>
         <span

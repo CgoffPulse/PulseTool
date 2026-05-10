@@ -83,7 +83,7 @@ export async function listProjects(filter: ProjectFilter = {}): Promise<ProjectS
 
       const rows = await q<ProjectSummary & { open_task_count: string | number; in_progress_task_count: string | number }>(
         `select p.id, p.name, p.slug, p.state::text as state, p.kind::text as kind,
-                p.summary, p.current_focus, p.owner,
+                p.summary, p.current_focus,
                 p.client_id, p.client_slug, c.name as client_name,
                 p.service_line, p.department_id,
                 d.key as department_key, d.name as department_name,
@@ -126,7 +126,7 @@ export async function getProject(slug: string): Promise<ProjectSummary | null> {
     (async (): Promise<ProjectSummary | null> => {
       const r = await qOne<ProjectSummary & { open_task_count: string | number; in_progress_task_count: string | number }>(
         `select p.id, p.name, p.slug, p.state::text as state, p.kind::text as kind,
-                p.summary, p.current_focus, p.owner,
+                p.summary, p.current_focus,
                 p.client_id, p.client_slug, c.name as client_name,
                 p.service_line, p.department_id,
                 d.key as department_key, d.name as department_name,
@@ -277,8 +277,6 @@ function rowToApproval(r: {
   artifact_kind: string;
   artifact_id: string | null;
   artifact_slug: string | null;
-  artifact_title: string | null;
-  artifact_url: string | null;
   client_id: string | null;
   client_slug: string | null;
   client_name: string | null;
@@ -287,7 +285,6 @@ function rowToApproval(r: {
   state: string;
   requested_at: string;
   decided_at: string | null;
-  notes: string | null;
 }): Approval {
   let received: ApprovalReceived[] = [];
   if (Array.isArray(r.received)) {
@@ -305,8 +302,6 @@ function rowToApproval(r: {
     artifact_kind: r.artifact_kind as ApprovalArtifactKind,
     artifact_id: r.artifact_id,
     artifact_slug: r.artifact_slug,
-    artifact_title: r.artifact_title,
-    artifact_url: r.artifact_url,
     client_id: r.client_id,
     client_slug: r.client_slug,
     client_name: r.client_name,
@@ -315,7 +310,6 @@ function rowToApproval(r: {
     state: r.state as ApprovalState,
     requested_at: toIso(r.requested_at),
     decided_at: r.decided_at ? toIso(r.decided_at) : null,
-    notes: r.notes,
   };
 }
 
@@ -327,10 +321,10 @@ export async function listApprovals(state?: ApprovalState): Promise<Approval[]> 
       if (state) params.push(state);
       const rows = await q<Parameters<typeof rowToApproval>[0]>(
         `select a.id, a.artifact_kind::text as artifact_kind,
-                a.artifact_id, a.artifact_slug, a.artifact_title, a.artifact_url,
+                a.artifact_id, a.artifact_slug,
                 a.client_id, a.client_slug, c.name as client_name,
                 a.required_approvers, a.received, a.state::text as state,
-                a.requested_at, a.decided_at, a.notes
+                a.requested_at, a.decided_at
            from command.approvals a
            left join clients c on c.id = a.client_id
           ${where}
@@ -349,10 +343,10 @@ export async function getApproval(id: string): Promise<Approval | null> {
     (async (): Promise<Approval | null> => {
       const r = await qOne<Parameters<typeof rowToApproval>[0]>(
         `select a.id, a.artifact_kind::text as artifact_kind,
-                a.artifact_id, a.artifact_slug, a.artifact_title, a.artifact_url,
+                a.artifact_id, a.artifact_slug,
                 a.client_id, a.client_slug, c.name as client_name,
                 a.required_approvers, a.received, a.state::text as state,
-                a.requested_at, a.decided_at, a.notes
+                a.requested_at, a.decided_at
            from command.approvals a
            left join clients c on c.id = a.client_id
           where a.id = $1
@@ -820,7 +814,7 @@ export async function getAgencyObjectives(): Promise<AgencyObjective[]> {
         days_until_ship: number | null;
       } & Project & { open_task_count: number; days_until_ship: number | null }>(
         `select p.id, p.name, p.slug, p.state::text as state, p.kind::text as kind,
-                p.summary, p.current_focus, p.owner,
+                p.summary, p.current_focus,
                 p.client_id, p.client_slug, c.name as client_name,
                 p.service_line, p.department_id,
                 d.key as department_key, d.name as department_name,

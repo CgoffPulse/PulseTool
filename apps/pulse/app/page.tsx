@@ -124,7 +124,7 @@ function ApprovalsStrip({
   oldest,
 }: {
   count: number;
-  oldest: { id: string; artifact_kind: string; artifact_title: string | null; client_name?: string | null; waiting_hours: number } | null;
+  oldest: { id: string; artifact_kind: string; artifact_slug: string | null; client_name?: string | null; waiting_hours: number } | null;
 }) {
   return (
     <Link
@@ -153,7 +153,7 @@ function ApprovalsStrip({
         <div className="border-t border-stone-100 pt-3 text-[12px] text-stone-600">
           <span className="text-stone-500">Oldest · </span>
           <span className="font-medium text-stone-800">
-            {oldest.artifact_title ?? oldest.artifact_kind}
+            {oldest.artifact_slug ?? oldest.artifact_kind}
           </span>
           {oldest.client_name && (
             <>

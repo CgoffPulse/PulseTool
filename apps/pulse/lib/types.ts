@@ -98,7 +98,6 @@ export interface Project {
   kind: WorkKind;
   summary: string | null;
   current_focus: string | null;
-  owner: string | null;
   client_id: string | null;
   client_slug: string | null;
   client_name?: string | null;
@@ -193,8 +192,6 @@ export interface Approval {
   artifact_kind: ApprovalArtifactKind | string;
   artifact_id: string | null;
   artifact_slug: string | null;
-  artifact_title: string | null;
-  artifact_url: string | null;
   client_id: string | null;
   client_slug: string | null;
   client_name?: string | null;
@@ -203,7 +200,6 @@ export interface Approval {
   state: ApprovalState;
   requested_at: string;
   decided_at: string | null;
-  notes: string | null;
 }
 
 // ─── Joined / synthetic shapes ─────────────────────────────────────────────
