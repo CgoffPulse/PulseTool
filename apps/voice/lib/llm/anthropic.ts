@@ -10,7 +10,7 @@ import type { z } from 'zod';
  * gracefully so the rest of the app stays navigable in local dev.
  */
 
-const DEFAULT_MODEL = 'claude-sonnet-4-5-20250929';
+const DEFAULT_MODEL = 'claude-sonnet-4-6';
 const DEFAULT_MAX_TOKENS = 1024;
 
 export interface RunMeta {
@@ -53,12 +53,15 @@ interface RunStructuredArgs<T> {
 }
 
 // Cents per 1,000 tokens. Round up so we never under-bill.
-// Source: Anthropic public pricing as of Apr 2026 (approximations).
+// Source: Anthropic public pricing as of May 2026.
+// Sonnet pricing has been stable across 4.5 → 4.6 generations.
 const PRICING: Record<string, { in: number; out: number }> = {
-  'claude-sonnet-4-5-20250929': { in: 0.3, out: 1.5 },
-  'claude-sonnet-4-5': { in: 0.3, out: 1.5 },
-  'claude-opus-4-5': { in: 1.5, out: 7.5 },
+  // Current generation defaults.
+  'claude-sonnet-4-6': { in: 0.3, out: 1.5 },
+  'claude-opus-4-7': { in: 1.5, out: 7.5 },
   'claude-haiku-4-5': { in: 0.1, out: 0.5 },
+  // Legacy entry — kept so we can re-compute cost on historical runs.
+  'claude-sonnet-4-5-20250929': { in: 0.3, out: 1.5 },
   // Fallback bucket, used when model is unrecognized.
   default: { in: 0.3, out: 1.5 },
 };

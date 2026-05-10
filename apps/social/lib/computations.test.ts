@@ -45,11 +45,11 @@ const TEMPLATES: Record<string, ShootTemplate> = {
 // 5 shoots — matches the May 2026 ONSC Production Plan rows 10-14.
 // Shoot 5 has no template assigned in the spreadsheet, so we leave template null.
 const SHOOTS: ShootWithTemplate[] = [
-  { id: 's1', month_id: 'm', bundle_number: 1, shoot_template_id: TEMPLATES.partner.id, scheduled_date: '2026-04-29', scheduled_time: '2:00 - 3:00 PM', location: 'OAK Steak House', assigned_to: 'Trey', asset_status: 'scheduled', drive_folder_url: null, notes: null, template: TEMPLATES.partner },
-  { id: 's2', month_id: 'm', bundle_number: 2, shoot_template_id: TEMPLATES.lunch.id, scheduled_date: '2026-05-05', scheduled_time: '14:00', location: 'Tusk And Trotter', assigned_to: 'Trey', asset_status: 'not_scheduled', drive_folder_url: null, notes: null, template: TEMPLATES.lunch },
-  { id: 's3', month_id: 'm', bundle_number: 3, shoot_template_id: TEMPLATES.ranch.id, scheduled_date: '2026-05-11', scheduled_time: '18:00', location: 'Oklahoma Ranch', assigned_to: 'Trey', asset_status: 'not_scheduled', drive_folder_url: null, notes: null, template: TEMPLATES.ranch },
-  { id: 's4', month_id: 'm', bundle_number: 4, shoot_template_id: TEMPLATES.studio.id, scheduled_date: '2026-05-09', scheduled_time: 'All Day', location: 'Pulse Office', assigned_to: 'Trey', asset_status: 'not_scheduled', drive_folder_url: null, notes: null, template: TEMPLATES.studio },
-  { id: 's5', month_id: 'm', bundle_number: 5, shoot_template_id: null, scheduled_date: null, scheduled_time: null, location: null, assigned_to: null, asset_status: 'not_scheduled', drive_folder_url: null, notes: null, template: null },
+  { id: 's1', month_id: 'm', bundle_number: 1, shoot_template_id: TEMPLATES.partner.id, scheduled_date: '2026-04-29', scheduled_time: '2:00 - 3:00 PM', location: 'OAK Steak House', assigned_to: 'Trey', assigned_person_id: null, asset_status: 'scheduled', drive_folder_url: null, notes: null, piggyback_on_shoot_id: null, template: TEMPLATES.partner },
+  { id: 's2', month_id: 'm', bundle_number: 2, shoot_template_id: TEMPLATES.lunch.id, scheduled_date: '2026-05-05', scheduled_time: '14:00', location: 'Tusk And Trotter', assigned_to: 'Trey', assigned_person_id: null, asset_status: 'not_scheduled', drive_folder_url: null, notes: null, piggyback_on_shoot_id: null, template: TEMPLATES.lunch },
+  { id: 's3', month_id: 'm', bundle_number: 3, shoot_template_id: TEMPLATES.ranch.id, scheduled_date: '2026-05-11', scheduled_time: '18:00', location: 'Oklahoma Ranch', assigned_to: 'Trey', assigned_person_id: null, asset_status: 'not_scheduled', drive_folder_url: null, notes: null, piggyback_on_shoot_id: null, template: TEMPLATES.ranch },
+  { id: 's4', month_id: 'm', bundle_number: 4, shoot_template_id: TEMPLATES.studio.id, scheduled_date: '2026-05-09', scheduled_time: 'All Day', location: 'Pulse Office', assigned_to: 'Trey', assigned_person_id: null, asset_status: 'not_scheduled', drive_folder_url: null, notes: null, piggyback_on_shoot_id: null, template: TEMPLATES.studio },
+  { id: 's5', month_id: 'm', bundle_number: 5, shoot_template_id: null, scheduled_date: null, scheduled_time: null, location: null, assigned_to: null, assigned_person_id: null, asset_status: 'not_scheduled', drive_folder_url: null, notes: null, piggyback_on_shoot_id: null, template: null },
 ];
 
 // Posts mirroring rows 9-53 of the ONSC Planning sheet.
@@ -113,6 +113,8 @@ const POSTS: Post[] = POST_SPECS.map(([date, type, bundle], i) => ({
   shoot_id: bundle === 0 ? null : `s${bundle}`,
   status: 'planned',
   asset_ready: false,
+  asset_url: null,
+  owner_person_id: null,
   sort_index: i,
 }));
 
