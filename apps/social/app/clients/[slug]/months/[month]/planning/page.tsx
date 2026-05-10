@@ -10,6 +10,7 @@ import { monthSlugToIso } from '@/lib/utils';
 import { PlanningGrid } from '@/components/planning-grid';
 import { CoveragePanel } from '@/components/coverage-panel';
 import { AiMonthDrafter } from '@/components/ai-month-drafter';
+import { NotificationBanner } from '@/components/notification-banner';
 import { CONTENT_TYPE_LABEL } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -36,6 +37,7 @@ export default async function PlanningPage({
 
   return (
     <div className="space-y-6">
+      <NotificationBanner clientId={client.id} monthId={ctx.month.id} />
       <div className="flex flex-wrap items-center justify-end gap-2">
         <AiMonthDrafter
           monthId={ctx.month.id}
