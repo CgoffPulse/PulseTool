@@ -4,6 +4,7 @@
   "private": true,
   "description": "Pulse agency tools ecosystem (monorepo). Each tool is an independent app under apps/*; cross-tool code lives in packages/*.",
   "scripts": {
+    "dev:pulse": "pnpm --filter @pulse/pulse dev",
     "dev:social": "pnpm --filter @pulse/social dev",
     "dev:dev": "pnpm --filter @pulse/dev dev",
     "build": "pnpm -r build",
