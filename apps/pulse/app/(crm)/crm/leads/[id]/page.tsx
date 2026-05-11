@@ -129,15 +129,39 @@ export default async function LeadDetailPage({ params }: Props) {
               </span>
             )}
           </div>
-          <div className="mt-6">
+          <div className="mt-6 flex flex-wrap gap-3">
             <Link
               href={`/crm/leads/${lead.id}/edit`}
-              className="inline-flex items-center gap-1.5 rounded-full border border-cream/30 bg-cream/10 px-3 py-1 text-[12px] font-medium uppercase tracking-[0.08em] text-cream hover:bg-cream/20"
+              className="inline-flex items-center gap-2 rounded-md bg-amber-deep px-4 py-2 text-[13px] font-semibold uppercase tracking-[0.06em] text-cream shadow-sm transition-colors hover:bg-amber-deep/90"
             >
-              <Edit3 size={12} /> Edit details
+              <Edit3 size={14} /> Edit lead details
             </Link>
+            <span className="text-[12px] leading-[36px] text-cream/65">
+              Update value, services, notes, and everything else here.
+            </span>
           </div>
         </header>
+      </div>
+
+      {/* Loud edit CTA outside the hero — Christian can't miss it. */}
+      <div className="flex items-center justify-between gap-4 rounded-lg border border-amber-mid/40 bg-amber/5 px-5 py-4">
+        <div className="flex items-center gap-3">
+          <Edit3 size={18} className="shrink-0 text-amber-deep" />
+          <div className="flex flex-col">
+            <span className="text-[13px] font-semibold text-stone-900">
+              Update anything about this lead
+            </span>
+            <span className="text-[12px] text-stone-600">
+              Value, services interested, decision-maker, pain points, contact info — all on one page.
+            </span>
+          </div>
+        </div>
+        <Link
+          href={`/crm/leads/${lead.id}/edit`}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-amber-deep bg-white px-3 py-1.5 text-[13px] font-medium text-amber-deep transition-colors hover:bg-amber-deep hover:text-cream"
+        >
+          <Edit3 size={14} /> Edit lead
+        </Link>
       </div>
 
       <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
