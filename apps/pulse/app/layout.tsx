@@ -24,9 +24,9 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Pulse Huddle — Agency command bridge',
+  title: 'Pulse — Agency operating engine',
   description:
-    'One screen across CRM, social, dev, voice, and analytics. The agency command bridge.',
+    'One operating engine for the agency. Command, Studios, Voice, CRM, Analytics, and Engineering — one screen, one deploy.',
 };
 
 export const dynamic = 'force-dynamic';

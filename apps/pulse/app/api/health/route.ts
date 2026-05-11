@@ -13,7 +13,7 @@ export async function GET() {
   const configured = (key: string) => (process.env[key] ? 'configured' : 'missing');
   return NextResponse.json({
     ok: true,
-    app: 'pulse-huddle',
+    app: 'pulse',
     db,
     integrations: {
       social_url: configured('NEXT_PUBLIC_SOCIAL_URL'),

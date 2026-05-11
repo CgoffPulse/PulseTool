@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Clock } from 'lucide-react';
 
-const STORAGE_KEY = 'pulse-huddle-last-viewed';
+const STORAGE_KEY = 'pulse-morning-last-viewed';
+// Migrate legacy key once on first read (pre-consolidation users).
+const LEGACY_STORAGE_KEY = 'pulse-huddle-last-viewed';
 
 export function SinceControl({ initialSince }: { initialSince: string }) {
   const router = useRouter();
@@ -13,6 +15,14 @@ export function SinceControl({ initialSince }: { initialSince: string }) {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    // One-time migration: pre-consolidation users had the legacy key.
+    if (!window.localStorage.getItem(STORAGE_KEY)) {
+      const legacy = window.localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (legacy) {
+        window.localStorage.setItem(STORAGE_KEY, legacy);
+        window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+      }
+    }
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (!searchParams?.get('since') && stored) {
       const url = new URL(window.location.href);
