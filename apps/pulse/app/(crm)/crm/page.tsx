@@ -6,7 +6,6 @@ import {
   listSources,
   listStalledLeads,
 } from '@/lib/crm/queries';
-import type { LeadWithMeta } from '@/lib/crm/types';
 import { LeadCard } from '@/components/crm/lead-card';
 import { PipelineBoard } from '@/components/crm/pipeline-board';
 import { QuickLeadForm } from '@/components/crm/quick-lead-form';
@@ -23,8 +22,8 @@ export default async function PipelinePage() {
   const isEmpty = leads.length === 0;
 
   return (
-    <div className="flex flex-col gap-10">
-      <Hero
+    <div className="flex flex-col gap-8 pb-12">
+      <Header
         stats={{
           newCount: stats.this_month_new,
           wonCount: stats.this_month_won,
@@ -36,54 +35,35 @@ export default async function PipelinePage() {
         }}
       />
 
+      {stalled.length > 0 && <StalledStrip stalled={stalled} />}
+
       <section className="flex flex-col gap-3">
-        <span className="eyebrow">Quick add</span>
+        <SectionHeading title="Quick add">
+          <Link
+            href="/crm/leads/new"
+            className="text-[11px] font-medium uppercase tracking-[0.08em] text-stone-500 hover:text-amber-deep"
+          >
+            Open full editor →
+          </Link>
+        </SectionHeading>
         <QuickLeadForm sources={sources} />
       </section>
 
-      {stalled.length > 0 && (
-        <section className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <span className="eyebrow">Needs attention</span>
-            <Link
-              href="/crm/inbox"
-              className="text-xs uppercase tracking-eyebrow text-green-deep underline-offset-4 hover:text-amber-deep hover:underline"
-            >
-              See full inbox <ArrowRight size={12} className="inline" />
-            </Link>
-          </div>
-          <div className="grid gap-3 rounded-md border border-bad/30 bg-white p-4 shadow-sm">
-            <div className="flex items-center gap-2 text-sm font-semibold text-bad">
-              <AlertTriangle size={16} />
-              {stalled.length} lead{stalled.length === 1 ? '' : 's'} stalled
-              <span className="font-normal text-charcoal/60">
-                — no touch in 7+ days
-              </span>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {stalled.slice(0, 6).map(l => (
-                <LeadCard key={l.id} lead={l} />
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
       <section className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <span className="eyebrow">Pipeline</span>
-          <span className="text-xs uppercase tracking-eyebrow text-charcoal/55">
+        <SectionHeading title="Pipeline">
+          <span className="text-[11px] uppercase tracking-[0.08em] text-stone-500">
             {leads.length} lead{leads.length === 1 ? '' : 's'}
           </span>
-        </div>
-
+        </SectionHeading>
         {isEmpty ? <EmptyState /> : <PipelineBoard leads={leads} />}
       </section>
     </div>
   );
 }
 
-function Hero({
+// ─── Header (neutral, no editorial hero) ──────────────────────────────────
+
+function Header({
   stats,
 }: {
   stats: {
@@ -97,54 +77,48 @@ function Hero({
   };
 }) {
   return (
-    <section className="grain relative overflow-hidden rounded-lg border border-green-deep/10 bg-green-deep px-8 py-10 text-cream shadow-card">
-      <span aria-hidden className="watermark cream pointer-events-none absolute -bottom-6 right-4 text-[160px] leading-none">
-        CRM
-      </span>
-      <span className="eyebrow cream">Where new clients come from</span>
-      <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
-        <h1 className="max-w-3xl font-display text-4xl font-bold leading-display tracking-display sm:text-5xl">
-          Pulse <span className="italic-amber">Pipeline</span>.
-          <span className="block font-normal text-cream/75 mt-1 text-2xl sm:text-3xl">
-            {stats.active} live · {stats.stalledCount} stalled · {formatMoneyFull(stats.pipeline)} on the table
+    <header className="flex flex-col gap-6 border-b border-stone-200 pb-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-col gap-2">
+          <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-stone-500">
+            Pulse CRM · Pipeline
           </span>
-        </h1>
+          <h1 className="font-display text-3xl font-semibold tracking-tight text-stone-900">
+            Pipeline
+          </h1>
+          <p className="text-[14px] text-stone-600">
+            {stats.active} live · {stats.stalledCount} stalled ·{' '}
+            <span className="tabular-nums">{formatMoneyFull(stats.pipeline)}</span> on the table
+          </p>
+        </div>
         <Link
           href="/crm/leads/new"
-          className="inline-flex items-center gap-2 rounded-md bg-amber-deep px-4 py-2 text-[13px] font-semibold uppercase tracking-[0.06em] text-cream shadow-sm transition-colors hover:bg-amber-deep/90"
+          className="inline-flex items-center gap-2 rounded-md bg-green-deep px-4 py-2 text-[13px] font-semibold uppercase tracking-[0.06em] text-cream shadow-sm transition-colors hover:bg-green-deep/90"
         >
           <Plus size={14} /> New lead
         </Link>
       </div>
 
-      <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <StatTile label="New this month" value={String(stats.newCount)} />
-        <StatTile label="Won this month" value={String(stats.wonCount)} accent="amber" />
+        <StatTile label="Won this month" value={String(stats.wonCount)} accent />
         <StatTile label="Lost this month" value={String(stats.lostCount)} />
         <StatTile label="Pipeline value" value={formatMoneyFull(stats.pipeline)} />
-        <StatTile label="Won (MTD)" value={formatMoneyFull(stats.wonValue)} accent="amber" />
+        <StatTile label="Won (MTD)" value={formatMoneyFull(stats.wonValue)} accent />
       </div>
-    </section>
+    </header>
   );
 }
 
-function StatTile({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string;
-  accent?: 'amber';
-}) {
+function StatTile({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div className="rounded-md border border-cream/10 bg-cream/5 px-4 py-3">
-      <div className="text-[10px] uppercase tracking-eyebrow text-cream/55">
+    <div className="rounded-lg border border-stone-200 bg-white px-4 py-3 shadow-[0_1px_2px_rgb(0_0_0_/0.04)]">
+      <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-stone-500">
         {label}
       </div>
       <div
-        className={`font-display text-2xl font-bold tabular-nums ${
-          accent === 'amber' ? 'italic-amber' : 'text-cream-lt'
+        className={`mt-1 font-display text-2xl font-semibold tabular-nums ${
+          accent ? 'text-amber-deep' : 'text-stone-900'
         }`}
       >
         {value}
@@ -153,19 +127,69 @@ function StatTile({
   );
 }
 
+// ─── Stalled strip ────────────────────────────────────────────────────────
+
+function StalledStrip({ stalled }: { stalled: Awaited<ReturnType<typeof listStalledLeads>> }) {
+  return (
+    <section className="flex flex-col gap-3">
+      <SectionHeading title="Needs attention">
+        <Link
+          href="/crm/inbox"
+          className="inline-flex items-center gap-1 text-[11px] font-medium uppercase tracking-[0.08em] text-stone-500 hover:text-amber-deep"
+        >
+          See full inbox <ArrowRight size={12} />
+        </Link>
+      </SectionHeading>
+      <div className="flex flex-col gap-3 rounded-lg border border-bad/30 bg-bad/5 p-4">
+        <div className="flex items-center gap-2 text-[13px] font-semibold text-bad">
+          <AlertTriangle size={14} />
+          {stalled.length} lead{stalled.length === 1 ? '' : 's'} stalled
+          <span className="font-normal text-stone-600">— no touch in 7+ days</span>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {stalled.slice(0, 6).map(l => (
+            <LeadCard key={l.id} lead={l} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Shared ───────────────────────────────────────────────────────────────
+
+function SectionHeading({
+  title,
+  children,
+}: {
+  title: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <h2 className="font-display text-xl font-semibold tracking-tight text-stone-900">
+        {title}
+      </h2>
+      {children}
+    </div>
+  );
+}
+
 function EmptyState() {
   return (
-    <div className="grid place-items-center rounded-md border border-dashed border-cream-dk bg-white/60 p-12 text-center">
-      <Sparkles size={28} className="mb-3 text-amber-deep" />
-      <h2 className="font-display text-2xl font-bold text-green-deep">
-        Pipeline is <span className="italic-amber">empty</span>.
+    <div className="grid place-items-center rounded-lg border border-dashed border-stone-300 bg-white p-12 text-center">
+      <Sparkles size={24} className="mb-3 text-amber-deep" />
+      <h2 className="font-display text-xl font-semibold text-stone-900">
+        Pipeline is empty
       </h2>
-      <p className="mt-2 max-w-md text-sm text-charcoal/65">
-        Add your first lead with the form above, or create one with the full
-        editor for richer detail.
+      <p className="mt-2 max-w-md text-[14px] text-stone-600">
+        Add your first lead with the quick form above, or open the full editor for richer detail.
       </p>
-      <Link href="/crm/leads/new" className="btn-primary mt-4">
-        New lead in full editor
+      <Link
+        href="/crm/leads/new"
+        className="mt-4 inline-flex items-center gap-2 rounded-md bg-green-deep px-4 py-2 text-[13px] font-semibold uppercase tracking-[0.06em] text-cream shadow-sm hover:bg-green-deep/90"
+      >
+        <Plus size={14} /> New lead in full editor
       </Link>
     </div>
   );
