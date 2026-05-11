@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { Loader2, Save } from 'lucide-react';
-import { updateLead } from '@/lib/crm/actions';
+import { updateLeadNotes } from '@/lib/crm/actions';
 
 export function NotesForm({ leadId, initial }: { leadId: string; initial: string | null }) {
   const [value, setValue] = useState(initial ?? '');
@@ -12,7 +12,7 @@ export function NotesForm({ leadId, initial }: { leadId: string; initial: string
     <form
       action={(fd: FormData) => {
         start(async () => {
-          await updateLead(fd);
+          await updateLeadNotes(fd);
           setSaved(true);
           setTimeout(() => setSaved(false), 1500);
         });

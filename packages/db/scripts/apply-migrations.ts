@@ -24,6 +24,9 @@ const ROOT = path.resolve(__dirname, '..', '..', '..');
 const MIGRATIONS_DIR = path.resolve(__dirname, '..', 'migrations');
 
 // Load env from each app's .env.local (whichever has the credentials).
+// Post-consolidation the canonical home is apps/pulse/.env.local; the
+// legacy social/dev paths are kept as a fallback for older worktrees.
+loadEnv({ path: path.join(ROOT, 'apps', 'pulse', '.env.local') });
 loadEnv({ path: path.join(ROOT, 'apps', 'social', '.env.local') });
 loadEnv({ path: path.join(ROOT, 'apps', 'dev', '.env.local') });
 loadEnv({ path: path.join(ROOT, '.env') });

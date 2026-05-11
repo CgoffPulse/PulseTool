@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { q, qOne, tx } from '../db';
-import { LEAD_STAGES, TOUCH_KINDS, type LeadStage } from './types';
+import { LEAD_HEATS, LEAD_STAGES, TOUCH_KINDS, type LeadStage } from './types';
 import { promoteLeadToClient, socialClientUrl } from './social-bridge';
 import { resolveNotification, upsertNotification } from './notifications';
 
@@ -35,7 +35,41 @@ const optionalUuid = z.preprocess(
   z.string().uuid().nullable()
 );
 
-const NewLeadSchema = z.object({
+const optionalHeat = z.preprocess(
+  v => (v === '' || v === null || v === undefined ? null : v),
+  z.enum(LEAD_HEATS as [(typeof LEAD_HEATS)[number], ...typeof LEAD_HEATS]).nullable()
+);
+
+/**
+ * Form values for the multi-select `services_interested` field — FormData
+ * gives us either an array (multiple <select> values) or a single string when
+ * one option is chosen. We normalize to a clean string[].
+ */
+function readServiceLines(formData: FormData): string[] {
+  const all = formData.getAll('services_interested');
+  return all
+    .map(v => (typeof v === 'string' ? v.trim() : ''))
+    .filter(v => v.length > 0);
+}
+
+/**
+ * `tags` is captured as a single comma-separated string in the form for UX
+ * (tags get added casually as you type). Server splits + trims + dedupes.
+ */
+function readTags(formData: FormData): string[] {
+  const raw = formData.get('tags');
+  if (typeof raw !== 'string') return [];
+  return Array.from(
+    new Set(
+      raw
+        .split(',')
+        .map(s => s.trim())
+        .filter(s => s.length > 0 && s.length <= 32)
+    )
+  );
+}
+
+const LeadProfileSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200),
   company: optionalString,
   email: optionalString,
@@ -44,11 +78,36 @@ const NewLeadSchema = z.object({
   value_cents: optionalCents,
   expected_close_date: optionalDate,
   owner_person_id: optionalUuid,
+  // Business profile
+  industry: optionalString,
+  business_type: optionalString,
+  city: optionalString,
+  region: optionalString,
+  website_url: optionalString,
+  instagram_handle: optionalString,
+  facebook_url: optionalString,
+  google_business_url: optionalString,
+  // Stakeholders
+  decision_maker_name: optionalString,
+  decision_maker_title: optionalString,
+  // Opportunity
+  services_interested: z.array(z.string().max(64)).default([]),
+  budget_signal: optionalString,
+  timeline: optionalString,
+  heat: optionalHeat,
+  // Discovery
+  pain_points: optionalString,
+  current_solution: optionalString,
+  goals: optionalString,
+  referrer: optionalString,
+  // Flexible
+  tags: z.array(z.string().max(32)).default([]),
+  // Free-form
   notes: optionalString,
 });
 
-export async function createLead(formData: FormData) {
-  const parsed = NewLeadSchema.parse({
+function readLeadProfile(formData: FormData) {
+  return LeadProfileSchema.parse({
     name: formData.get('name'),
     company: formData.get('company'),
     email: formData.get('email'),
@@ -57,23 +116,62 @@ export async function createLead(formData: FormData) {
     value_cents: formData.get('value'),
     expected_close_date: formData.get('expected_close_date'),
     owner_person_id: formData.get('owner_person_id'),
+    industry: formData.get('industry'),
+    business_type: formData.get('business_type'),
+    city: formData.get('city'),
+    region: formData.get('region'),
+    website_url: formData.get('website_url'),
+    instagram_handle: formData.get('instagram_handle'),
+    facebook_url: formData.get('facebook_url'),
+    google_business_url: formData.get('google_business_url'),
+    decision_maker_name: formData.get('decision_maker_name'),
+    decision_maker_title: formData.get('decision_maker_title'),
+    services_interested: readServiceLines(formData),
+    budget_signal: formData.get('budget_signal'),
+    timeline: formData.get('timeline'),
+    heat: formData.get('heat'),
+    pain_points: formData.get('pain_points'),
+    current_solution: formData.get('current_solution'),
+    goals: formData.get('goals'),
+    referrer: formData.get('referrer'),
+    tags: readTags(formData),
     notes: formData.get('notes'),
   });
+}
+
+export async function createLead(formData: FormData) {
+  const p = readLeadProfile(formData);
   const inserted = await qOne<{ id: string }>(
-    `insert into crm.leads (name, company, email, phone, source_id, value_cents,
-                            expected_close_date, owner_person_id, notes)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `insert into crm.leads (
+       name, company, email, phone, source_id, value_cents,
+       expected_close_date, owner_person_id,
+       industry, business_type, city, region,
+       website_url, instagram_handle, facebook_url, google_business_url,
+       decision_maker_name, decision_maker_title,
+       services_interested, budget_signal, timeline, heat,
+       pain_points, current_solution, goals, referrer,
+       tags, notes
+     )
+     values (
+       $1, $2, $3, $4, $5, $6,
+       $7, $8,
+       $9, $10, $11, $12,
+       $13, $14, $15, $16,
+       $17, $18,
+       $19, $20, $21, $22::crm.lead_heat,
+       $23, $24, $25, $26,
+       $27, $28
+     )
      returning id`,
     [
-      parsed.name,
-      parsed.company,
-      parsed.email,
-      parsed.phone,
-      parsed.source_id,
-      parsed.value_cents,
-      parsed.expected_close_date,
-      parsed.owner_person_id,
-      parsed.notes,
+      p.name, p.company, p.email, p.phone, p.source_id, p.value_cents,
+      p.expected_close_date, p.owner_person_id,
+      p.industry, p.business_type, p.city, p.region,
+      p.website_url, p.instagram_handle, p.facebook_url, p.google_business_url,
+      p.decision_maker_name, p.decision_maker_title,
+      p.services_interested, p.budget_signal, p.timeline, p.heat,
+      p.pain_points, p.current_solution, p.goals, p.referrer,
+      p.tags, p.notes,
     ]
   );
   if (!inserted) throw new Error('Failed to create lead');
@@ -113,46 +211,78 @@ export async function createQuickLead(formData: FormData) {
   revalidatePath('/crm');
 }
 
-const UpdateLeadSchema = z.object({
-  id: z.string().uuid(),
-  name: z.string().min(1).max(200).optional(),
-  company: optionalString.optional(),
-  email: optionalString.optional(),
-  phone: optionalString.optional(),
-  source_id: optionalUuid.optional(),
-  value_cents: optionalCents.optional(),
-  expected_close_date: optionalDate.optional(),
-  owner_person_id: optionalUuid.optional(),
-  notes: optionalString.optional(),
-});
-
+/**
+ * Full-profile update. Reuses the new-lead schema + reader so the edit form
+ * and the create form stay structurally identical.
+ *
+ * Behavior: every column in the profile is overwritten with the parsed value
+ * (including nulls and empty arrays). The edit form submits the full state of
+ * the record, not a diff, so this is intentional — the form IS the truth.
+ *
+ * `notes` is handled here too, even though the detail page has its own
+ * inline NotesForm. Both submit through `updateLead` (the edit page) or
+ * through the dedicated notes mutation (still wired).
+ */
 export async function updateLead(formData: FormData) {
-  const parsed = UpdateLeadSchema.parse({
-    id: formData.get('id'),
-    name: formData.get('name') ?? undefined,
-    company: formData.get('company') ?? undefined,
-    email: formData.get('email') ?? undefined,
-    phone: formData.get('phone') ?? undefined,
-    source_id: formData.get('source_id') ?? undefined,
-    value_cents: formData.get('value') ?? undefined,
-    expected_close_date: formData.get('expected_close_date') ?? undefined,
-    owner_person_id: formData.get('owner_person_id') ?? undefined,
-    notes: formData.get('notes') ?? undefined,
-  });
-  const sets: string[] = [];
-  const params: unknown[] = [];
-  let i = 1;
-  for (const [k, v] of Object.entries(parsed)) {
-    if (k === 'id') continue;
-    if (v === undefined) continue;
-    sets.push(`${k} = $${i++}`);
-    params.push(v);
-  }
-  if (sets.length === 0) return;
-  params.push(parsed.id);
-  await q(`update crm.leads set ${sets.join(', ')} where id = $${i}`, params);
-  revalidatePath(`/crm/leads/${parsed.id}`);
+  const id = z.string().uuid().parse(formData.get('id'));
+  const p = readLeadProfile(formData);
+  await q(
+    `update crm.leads set
+        name = $2,
+        company = $3,
+        email = $4,
+        phone = $5,
+        source_id = $6,
+        value_cents = $7,
+        expected_close_date = $8,
+        owner_person_id = $9,
+        industry = $10,
+        business_type = $11,
+        city = $12,
+        region = $13,
+        website_url = $14,
+        instagram_handle = $15,
+        facebook_url = $16,
+        google_business_url = $17,
+        decision_maker_name = $18,
+        decision_maker_title = $19,
+        services_interested = $20,
+        budget_signal = $21,
+        timeline = $22,
+        heat = $23::crm.lead_heat,
+        pain_points = $24,
+        current_solution = $25,
+        goals = $26,
+        referrer = $27,
+        tags = $28,
+        notes = $29
+      where id = $1`,
+    [
+      id,
+      p.name, p.company, p.email, p.phone, p.source_id, p.value_cents,
+      p.expected_close_date, p.owner_person_id,
+      p.industry, p.business_type, p.city, p.region,
+      p.website_url, p.instagram_handle, p.facebook_url, p.google_business_url,
+      p.decision_maker_name, p.decision_maker_title,
+      p.services_interested, p.budget_signal, p.timeline, p.heat,
+      p.pain_points, p.current_solution, p.goals, p.referrer,
+      p.tags, p.notes,
+    ]
+  );
+  revalidatePath(`/crm/leads/${id}`);
   revalidatePath('/crm');
+  redirect(`/crm/leads/${id}`);
+}
+
+/**
+ * Lightweight notes-only patch — used by the detail page's inline NotesForm
+ * so users can update notes without going through the full edit form.
+ */
+export async function updateLeadNotes(formData: FormData) {
+  const id = z.string().uuid().parse(formData.get('id'));
+  const notes = optionalString.parse(formData.get('notes'));
+  await q(`update crm.leads set notes = $1 where id = $2`, [notes, id]);
+  revalidatePath(`/crm/leads/${id}`);
 }
 
 export async function moveLeadStage(formData: FormData) {
