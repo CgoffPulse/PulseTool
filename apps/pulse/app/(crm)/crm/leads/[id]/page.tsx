@@ -25,6 +25,12 @@ import { StageControl } from './_stage-control';
 import { TouchForm } from './_touch-form';
 import { PromoteButton } from './_promote-button';
 import { NotesForm } from './_notes-form';
+import {
+  ArchiveLeadButton,
+  InlineHeatEditor,
+  InlineOwnerEditor,
+  InlineValueEditor,
+} from './_inline-editors';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -143,16 +149,33 @@ export default async function LeadDetailPage({ params }: Props) {
         </header>
       </div>
 
-      {/* Loud edit CTA outside the hero — Christian can't miss it. */}
+      {/* Quick-edit strip — change the most-edited fields without leaving the page. */}
+      <div className="grid gap-4 rounded-lg border border-stone-200 bg-white p-6 shadow-[0_1px_2px_rgb(0_0_0_/0.04)] sm:grid-cols-3">
+        <QuickField label="Deal value">
+          <InlineValueEditor leadId={lead.id} initial={lead.value_cents} />
+        </QuickField>
+        <QuickField label="Heat">
+          <InlineHeatEditor leadId={lead.id} initial={lead.heat} />
+        </QuickField>
+        <QuickField label="Owner">
+          <InlineOwnerEditor
+            leadId={lead.id}
+            initial={{ id: lead.owner_person_id, name: lead.owner_name }}
+            people={people}
+          />
+        </QuickField>
+      </div>
+
+      {/* Loud edit CTA — Christian can't miss it. */}
       <div className="flex items-center justify-between gap-4 rounded-lg border border-amber-mid/40 bg-amber/5 px-5 py-4">
         <div className="flex items-center gap-3">
           <Edit3 size={18} className="shrink-0 text-amber-deep" />
           <div className="flex flex-col">
             <span className="text-[13px] font-semibold text-stone-900">
-              Update anything about this lead
+              Edit every detail about this lead
             </span>
             <span className="text-[12px] text-stone-600">
-              Value, services interested, decision-maker, pain points, contact info — all on one page.
+              Business profile, decision-makers, services interested, pain points, contact info — open the full editor.
             </span>
           </div>
         </div>
@@ -160,7 +183,7 @@ export default async function LeadDetailPage({ params }: Props) {
           href={`/crm/leads/${lead.id}/edit`}
           className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-amber-deep bg-white px-3 py-1.5 text-[13px] font-medium text-amber-deep transition-colors hover:bg-amber-deep hover:text-cream"
         >
-          <Edit3 size={14} /> Edit lead
+          <Edit3 size={14} /> Open full editor
         </Link>
       </div>
 
@@ -375,8 +398,29 @@ export default async function LeadDetailPage({ params }: Props) {
               <Row label="Next follow-up" value={formatDate(lead.next_followup_at)} />
             )}
           </div>
+
+          <div className="flex flex-col gap-3 rounded-md border border-stone-200 bg-white p-4 shadow-sm">
+            <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-stone-500">
+              Lifecycle
+            </span>
+            <span className="text-[12px] text-stone-600">
+              Remove from pipeline when this lead is no longer relevant.
+            </span>
+            <ArchiveLeadButton leadId={lead.id} />
+          </div>
         </aside>
       </div>
+    </div>
+  );
+}
+
+function QuickField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-stone-500">
+        {label}
+      </span>
+      {children}
     </div>
   );
 }

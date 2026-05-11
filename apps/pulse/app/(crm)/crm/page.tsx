@@ -1,15 +1,15 @@
 import Link from 'next/link';
-import { AlertTriangle, ArrowRight, Sparkles } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Plus, Sparkles } from 'lucide-react';
 import {
   getPipelineStats,
   listLeads,
   listSources,
   listStalledLeads,
 } from '@/lib/crm/queries';
-import { LEAD_STAGES, type LeadStage, type LeadWithMeta } from '@/lib/crm/types';
+import type { LeadWithMeta } from '@/lib/crm/types';
 import { LeadCard } from '@/components/crm/lead-card';
+import { PipelineBoard } from '@/components/crm/pipeline-board';
 import { QuickLeadForm } from '@/components/crm/quick-lead-form';
-import { StageChip } from '@/components/crm/stage-chip';
 import { formatMoneyFull } from '@/lib/crm/format';
 
 export default async function PipelinePage() {
@@ -19,10 +19,6 @@ export default async function PipelinePage() {
     listStalledLeads(7),
     listSources(),
   ]);
-
-  const byStage = new Map<LeadStage, LeadWithMeta[]>();
-  for (const stage of LEAD_STAGES) byStage.set(stage, []);
-  for (const lead of leads) byStage.get(lead.stage)?.push(lead);
 
   const isEmpty = leads.length === 0;
 
@@ -81,19 +77,7 @@ export default async function PipelinePage() {
           </span>
         </div>
 
-        {isEmpty ? (
-          <EmptyState />
-        ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-            {LEAD_STAGES.map(stage => (
-              <PipelineColumn
-                key={stage}
-                stage={stage}
-                leads={byStage.get(stage) ?? []}
-              />
-            ))}
-          </div>
-        )}
+        {isEmpty ? <EmptyState /> : <PipelineBoard leads={leads} />}
       </section>
     </div>
   );
@@ -118,12 +102,20 @@ function Hero({
         CRM
       </span>
       <span className="eyebrow cream">Where new clients come from</span>
-      <h1 className="mt-3 max-w-3xl font-display text-4xl font-bold leading-display tracking-display sm:text-5xl">
-        Pulse <span className="italic-amber">Pipeline</span>.
-        <span className="block font-normal text-cream/75 mt-1 text-2xl sm:text-3xl">
-          {stats.active} live · {stats.stalledCount} stalled · {formatMoneyFull(stats.pipeline)} on the table
-        </span>
-      </h1>
+      <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
+        <h1 className="max-w-3xl font-display text-4xl font-bold leading-display tracking-display sm:text-5xl">
+          Pulse <span className="italic-amber">Pipeline</span>.
+          <span className="block font-normal text-cream/75 mt-1 text-2xl sm:text-3xl">
+            {stats.active} live · {stats.stalledCount} stalled · {formatMoneyFull(stats.pipeline)} on the table
+          </span>
+        </h1>
+        <Link
+          href="/crm/leads/new"
+          className="inline-flex items-center gap-2 rounded-md bg-amber-deep px-4 py-2 text-[13px] font-semibold uppercase tracking-[0.06em] text-cream shadow-sm transition-colors hover:bg-amber-deep/90"
+        >
+          <Plus size={14} /> New lead
+        </Link>
+      </div>
 
       <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <StatTile label="New this month" value={String(stats.newCount)} />
@@ -157,37 +149,6 @@ function StatTile({
       >
         {value}
       </div>
-    </div>
-  );
-}
-
-function PipelineColumn({
-  stage,
-  leads,
-}: {
-  stage: LeadStage;
-  leads: LeadWithMeta[];
-}) {
-  const totalValue = leads.reduce((sum, l) => sum + (l.value_cents ?? 0), 0);
-  return (
-    <div className="flex flex-col gap-3 rounded-md bg-cream/35 p-3">
-      <div className="flex items-center justify-between gap-2">
-        <StageChip stage={stage} size="sm" />
-        <span className="font-mono text-[10px] uppercase tracking-eyebrow text-charcoal/55 tabular-nums">
-          {leads.length} · {formatMoneyFull(totalValue)}
-        </span>
-      </div>
-      {leads.length === 0 ? (
-        <div className="flex min-h-[80px] items-center justify-center rounded-md border border-dashed border-cream-dk/60 bg-white/40 text-[11px] uppercase tracking-eyebrow text-charcoal/40">
-          Empty
-        </div>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {leads.map(lead => (
-            <LeadCard key={lead.id} lead={lead} />
-          ))}
-        </div>
-      )}
     </div>
   );
 }

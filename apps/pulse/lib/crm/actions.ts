@@ -285,6 +285,46 @@ export async function updateLeadNotes(formData: FormData) {
   revalidatePath(`/crm/leads/${id}`);
 }
 
+/**
+ * Mini-patch: deal value only. The detail page exposes an inline editor
+ * for this because it's the single most-edited field on a lead.
+ */
+export async function updateLeadValue(formData: FormData) {
+  const id = z.string().uuid().parse(formData.get('id'));
+  const valueCents = optionalCents.parse(formData.get('value'));
+  await q(`update crm.leads set value_cents = $1 where id = $2`, [valueCents, id]);
+  revalidatePath(`/crm/leads/${id}`);
+  revalidatePath('/crm');
+}
+
+/**
+ * Mini-patch: heat (cold/warm/hot). One-click change from the detail page.
+ */
+export async function updateLeadHeat(formData: FormData) {
+  const id = z.string().uuid().parse(formData.get('id'));
+  const heat = optionalHeat.parse(formData.get('heat'));
+  await q(
+    `update crm.leads set heat = $1::crm.lead_heat where id = $2`,
+    [heat, id]
+  );
+  revalidatePath(`/crm/leads/${id}`);
+  revalidatePath('/crm');
+}
+
+/**
+ * Mini-patch: owner (the Pulse-side person who owns the deal).
+ */
+export async function updateLeadOwner(formData: FormData) {
+  const id = z.string().uuid().parse(formData.get('id'));
+  const ownerId = optionalUuid.parse(formData.get('owner_person_id'));
+  await q(
+    `update crm.leads set owner_person_id = $1 where id = $2`,
+    [ownerId, id]
+  );
+  revalidatePath(`/crm/leads/${id}`);
+  revalidatePath('/crm');
+}
+
 export async function moveLeadStage(formData: FormData) {
   const id = z.string().uuid().parse(formData.get('id'));
   const toStage = z.enum(LEAD_STAGES as [LeadStage, ...LeadStage[]]).parse(formData.get('to_stage'));
