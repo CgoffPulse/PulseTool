@@ -3,6 +3,7 @@ import { AlertTriangle, ArrowRight, Plus, Sparkles } from 'lucide-react';
 import {
   getPipelineStats,
   listLeads,
+  listLostReasons,
   listSources,
   listStalledLeads,
 } from '@/lib/crm/queries';
@@ -12,11 +13,12 @@ import { QuickLeadForm } from '@/components/crm/quick-lead-form';
 import { formatMoneyFull } from '@/lib/crm/format';
 
 export default async function PipelinePage() {
-  const [stats, leads, stalled, sources] = await Promise.all([
+  const [stats, leads, stalled, sources, lostReasons] = await Promise.all([
     getPipelineStats(),
     listLeads(),
     listStalledLeads(7),
     listSources(),
+    listLostReasons(),
   ]);
 
   const isEmpty = leads.length === 0;
@@ -55,7 +57,7 @@ export default async function PipelinePage() {
             {leads.length} lead{leads.length === 1 ? '' : 's'}
           </span>
         </SectionHeading>
-        {isEmpty ? <EmptyState /> : <PipelineBoard leads={leads} />}
+        {isEmpty ? <EmptyState /> : <PipelineBoard leads={leads} lostReasons={lostReasons} />}
       </section>
     </div>
   );
